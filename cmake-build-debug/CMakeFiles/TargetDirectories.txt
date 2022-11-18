@@ -1,0 +1,3 @@
+D:/10031/Desktop/balance_trolley/cmake-build-debug/CMakeFiles/balance_trolley.elf.dir
+D:/10031/Desktop/balance_trolley/cmake-build-debug/CMakeFiles/edit_cache.dir
+D:/10031/Desktop/balance_trolley/cmake-build-debug/CMakeFiles/rebuild_cache.dir
