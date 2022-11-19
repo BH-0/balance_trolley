@@ -1,4 +1,4 @@
-# Install script for directory: D:/10031/Desktop/balance_trolley
+# Install script for directory: F:/Git/GEC_project/balance_trolley
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "D:/10031/Desktop/balance_trolley/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "F:/Git/GEC_project/balance_trolley/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

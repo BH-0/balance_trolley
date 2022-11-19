@@ -63,12 +63,20 @@ void Error_Handler(void);
 #define LED_GPIO_Port GPIOC
 #define KEY_Pin GPIO_PIN_0
 #define KEY_GPIO_Port GPIOA
+#define MPU6050_INT_Pin GPIO_PIN_1
+#define MPU6050_INT_GPIO_Port GPIOA
 #define IRQ_Pin GPIO_PIN_4
 #define IRQ_GPIO_Port GPIOA
 #define CS_Pin GPIO_PIN_0
 #define CS_GPIO_Port GPIOB
 #define CE_Pin GPIO_PIN_1
 #define CE_GPIO_Port GPIOB
+#define tof_SCL_Pin GPIO_PIN_8
+#define tof_SCL_GPIO_Port GPIOA
+#define tof_GPIO1_Pin GPIO_PIN_3
+#define tof_GPIO1_GPIO_Port GPIOB
+#define tof_SDA_Pin GPIO_PIN_4
+#define tof_SDA_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

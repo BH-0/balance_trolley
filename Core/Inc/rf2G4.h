@@ -99,6 +99,10 @@ u8 RF2G4_Check(void);		// 检测SI24R1是否正常
 void RF2G4_RX_Mode(void);	// 初始化SI24R1为接收模式
 void RF2G4_TX_Mode(void);	// 初始化SI24R1为发射模式
 
+//快速切换
+void RF2G4_RX_Mode_X(void);
+void RF2G4_TX_Mode_X(void);
+
 u8 RF2G4_Tx_Packet(u8* P_Data,u8 N_Data);	// SI24R1发送一帧数据
 u8 RF2G4_Rx_Packet(u8* P_Data,u8 N_Data);	// SI24R1接收一帧数据
 //-------------------------------------------------------------------------------------

@@ -52,7 +52,7 @@ rule CUSTOM_COMMAND
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = "D:\JetBrains\CLion 2022.2.3\bin\cmake\win\bin\cmake.exe" --regenerate-during-build -SD:\10031\Desktop\balance_trolley -BD:\10031\Desktop\balance_trolley\cmake-build-debug
+  command = "D:\JetBrains\CLion 2022.2.3\bin\cmake\win\bin\cmake.exe" --regenerate-during-build -SF:\Git\GEC_project\balance_trolley -BF:\Git\GEC_project\balance_trolley\cmake-build-debug
   description = Re-running CMake...
   generator = 1
 

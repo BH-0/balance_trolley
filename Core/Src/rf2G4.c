@@ -186,7 +186,7 @@ void RF2G4_RX_Mode(void)
 	RF2G4_CE = 0;	  
   	RF2G4_Write_Cont(W_REGISTER+RX_ADDR_P0, (u8*)RF2G4_ADDR_RX, RX_ADR_WIDTH);	// 设置RX节点地址
 	  
-  	RF2G4_Write_Reg(W_REGISTER+EN_AA,0x01);    		// 使能通道0的自动应答
+  	RF2G4_Write_Reg(W_REGISTER+EN_AA,0x01);    		// 使能通道0的自动应答   0x01
   	RF2G4_Write_Reg(W_REGISTER+EN_RXADDR,0x01);		// 使能通道0的接收地址
   	RF2G4_Write_Reg(W_REGISTER+RF_CH,40);	     	// 设置RF通信频率
   	RF2G4_Write_Reg(W_REGISTER+RX_PW_P0,14);		// 设置通道0的有效数据宽度（14位）
@@ -204,9 +204,9 @@ void RF2G4_TX_Mode(void)
   	RF2G4_Write_Cont(W_REGISTER+TX_ADDR,(u8*)RF2G4_ADDR_TX,TX_ADR_WIDTH);		// 设置TX节点地址
   	RF2G4_Write_Cont(W_REGISTER+RX_ADDR_P0,(u8*)RF2G4_ADDR_RX,RX_ADR_WIDTH); 	// 设置RX节点地址（ACK）	  
 
-  	RF2G4_Write_Reg(W_REGISTER+EN_AA,0x01);     	// 使能通道0的自动应答    
+  	RF2G4_Write_Reg(W_REGISTER+EN_AA,0x01);     	// 使能通道0的自动应答  0x01
   	RF2G4_Write_Reg(W_REGISTER+EN_RXADDR,0x01); 	// 使能通道0的接收地址  
-  	RF2G4_Write_Reg(W_REGISTER+SETUP_RETR,0x1A);	// 设置自动重发间隔时间:500us + 86us;最大自动重发次数:10次
+  	RF2G4_Write_Reg(W_REGISTER+SETUP_RETR,0xFF);	// 设置自动重发间隔时间:500us + 86us;最大自动重发次数:10次 0x1A
   	RF2G4_Write_Reg(W_REGISTER+RF_CH,40);       	// 设置RF通信频率
   	RF2G4_Write_Reg(W_REGISTER+RF_SETUP,0x27);  	// 设置:发射功率7dBm、射频数据率250kbps  
   	RF2G4_Write_Reg(W_REGISTER+CONFIG,0x0E);    	// 配置参数;接收模式、开机模式、CRC=2Byte、开启CRC、。。。
@@ -214,7 +214,30 @@ void RF2G4_TX_Mode(void)
 }
 //-------------------------------------------------------------------------------------------------------------------
 
+////////////////////////////////////////////////////////////////
+//用于快速切换
+void RF2G4_RX_Mode_X(void)
+{
+    //RF2G4_CE = 0;
+    RF2G4_Write_Cont(W_REGISTER+RX_ADDR_P0, (u8*)RF2G4_ADDR_RX, RX_ADR_WIDTH);	// 设置RX节点地址
 
+    RF2G4_Write_Reg(W_REGISTER+RX_PW_P0,14);		// 设置通道0的有效数据宽度（14位）
+    RF2G4_Write_Reg(W_REGISTER+CONFIG, 0x0F);		// 配置参数;接收模式、开机模式、CRC=2Byte、开启CRC、。。。
+    //RF2G4_CE = 1; 	// CE为高,进入接收模式
+}
+void RF2G4_TX_Mode_X(void)
+{
+    //RF2G4_CE = 0;
+    RF2G4_Write_Cont(W_REGISTER+TX_ADDR,(u8*)RF2G4_ADDR_TX,TX_ADR_WIDTH);		// 设置TX节点地址
+    RF2G4_Write_Cont(W_REGISTER+RX_ADDR_P0,(u8*)RF2G4_ADDR_RX,RX_ADR_WIDTH); 	// 设置RX节点地址（ACK）
+
+    RF2G4_Write_Reg(W_REGISTER+SETUP_RETR,0x1A);	// 设置自动重发间隔时间:500us + 86us;最大自动重发次数:10次
+    RF2G4_Write_Reg(W_REGISTER+CONFIG,0x0E);    	// 配置参数;接收模式、开机模式、CRC=2Byte、开启CRC、。。。
+    //RF2G4_CE = 1;	//CE为高,10us后启动发送
+}
+
+
+////////////////////////////////////////////////////////////////
 
 // SI24R1发送一帧数据
 // P_Data	= 待发送数据首地址
@@ -233,7 +256,7 @@ u8 RF2G4_Tx_Packet(u8* P_Data,u8 N_Data)
 	
  	RF2G4_CE = 1;			// 启动发送	   
 	
-	while(RF2G4_IRQ != 0);	// 等待发送完成
+	while(RF2G4_IRQ != 0){}	// 等待发送完成   //引脚为1却没跳出循环
 	
 	V_Reg = RF2G4_Read_Reg(STATUS);  // 读取状态寄存器的值	   
 	
@@ -243,7 +266,7 @@ u8 RF2G4_Tx_Packet(u8* P_Data,u8 N_Data)
 	if(V_Reg & TX_MAX)	// 判断是否达到最大重发次数
 	{
 		RF2G4_Write_Reg(FLUSH_TX,0xFF);	// 清除TX_FIFO 
-		
+        //RTT_printf(1, "error TX_FAIL_MAX\r\n");
 		return TX_FAIL_MAX; 	// 返回发送失败（达到最大重发次数）
 	}
 	

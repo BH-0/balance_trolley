@@ -148,21 +148,61 @@ void receive_2g4_task(void const * argument)
   /* USER CODE BEGIN receive_2g4_task */
   uint8_t ret = 0;
   uint16_t sum = 0;
-    RF2G4_RX_Mode();	// 将SI24R1设置为发射模式
+    RF2G4_RX_Mode();	// 接收模式
 
   /* Infinite loop */
   for(;;)
   {
-
-      ret = RF2G4_Rx_Packet((u8 *)RF2G4_Receive_Data, 14);
-//          ret = RF2G4_Read_Cont(R_RX_PAYLOAD, (u8 *) RF2G4_Receive_Data, 14);
-      if (ret == 0) {
-          sum++;
-          RTT_printf(0, "%d\r\n", sum);
+      ret = RF2G4_Rx_Packet((u8 *)RF2G4_Receive_Data, 14);  //第一位是0或1就是按键，其他则是功能码
+      if(sum >= 3)  //返回频率 每3次接收返回1次
+      {
+          sum = 0;
+          RF2G4_TX_Mode_X();	// 发射模式
+          RF2G4_Tx_Packet((u8 *)RF2G4_Send_Data,14);		//返回车子当前状态
+          RF2G4_RX_Mode_X();	// 接收模式
       }
-//      else
-//          RTT_printf(1, "%d\r\n", ret);
+      else if (ret == 0) //收到了数据
+      {
+          if(RF2G4_Receive_Data[0] == 251 ||    //接收出错
+                RF2G4_Receive_Data[1] == 251 ||
+                RF2G4_Receive_Data[2] == 251 ||
+                RF2G4_Receive_Data[3] == 251 ||
+                RF2G4_Receive_Data[4] == 251 ||
+                RF2G4_Receive_Data[5] == 251 ||
+                RF2G4_Receive_Data[6] == 251 ||
+                RF2G4_Receive_Data[7] == 251 ||
+                RF2G4_Receive_Data[8] == 251 ||
+                RF2G4_Receive_Data[9] == 251 ||
+                RF2G4_Receive_Data[10] == 251 ||
+                RF2G4_Receive_Data[11] == 251 ||
+                RF2G4_Receive_Data[12] == 251 ||
+                RF2G4_Receive_Data[13] == 251 )
+          {
+              //osDelay(10);
+              //continue;
+          }
+          else if(RF2G4_Receive_Data[0] == 0xAA) //请求连接
+          {
+              RF2G4_TX_Mode_X();	// 发射模式
+              RF2G4_Tx_Packet((u8 *)RF2G4_Receive_Data,14);		//返回握手包
+              RF2G4_RX_Mode_X();	// 接收模式
+              sum = 0;
+          }
+          else if(RF2G4_Receive_Data[0] == 0 || RF2G4_Receive_Data[0] == 1) //按键
+          {
 
+
+          }
+          sum++;
+
+          //打印所有接收到的信息
+          RTT_printf(0, "%d: ",sum);
+          for(u32 i = 0; i <14 ; i++)
+            RTT_printf(0, "%d,", RF2G4_Receive_Data[i]);
+          RTT_printf(0, "\r\n");
+      }
+
+      RF2G4_RX_Mode_X();	// 接收模式
       osDelay(10);
   }
   /* USER CODE END receive_2g4_task */
