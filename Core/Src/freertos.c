@@ -130,7 +130,7 @@ void testTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);   //LEDé—ªçƒ
+      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);   //LEDÉÁË¸
       osDelay(100);
   }
   /* USER CODE END testTask */
@@ -148,22 +148,22 @@ void receive_2g4_task(void const * argument)
   /* USER CODE BEGIN receive_2g4_task */
   uint8_t ret = 0;
   uint16_t sum = 0;
-    RF2G4_RX_Mode();	// æ¥æ”¶æ¨¡å¼
+    RF2G4_RX_Mode();	// ½ÓÊÕÄ£Ê½
 
   /* Infinite loop */
   for(;;)
   {
-      ret = RF2G4_Rx_Packet((u8 *)RF2G4_Receive_Data, 14);  //ç¬¬ä¸€ä½æ˜¯0æˆ–1å°±æ˜¯æŒ‰é”®ï¼Œå…¶ä»–åˆ™æ˜¯åŠŸèƒ½ç 
-      if(sum >= 3)  //è¿”å›é¢‘ç‡ æ¯3æ¬¡æ¥æ”¶è¿”å›1æ¬¡
+      ret = RF2G4_Rx_Packet((u8 *)RF2G4_Receive_Data, 14);  //µÚÒ»Î»ÊÇ0»ò1¾ÍÊÇ°´¼ü£¬ÆäËûÔòÊÇ¹¦ÄÜÂë
+      if(sum >= 3)  //·µ»ØÆµÂÊ Ã¿3´Î½ÓÊÕ·µ»Ø1´Î
       {
           sum = 0;
-          RF2G4_TX_Mode_X();	// å‘å°„æ¨¡å¼
-          RF2G4_Tx_Packet((u8 *)RF2G4_Send_Data,14);		//è¿”å›è½¦å­å½“å‰çŠ¶æ€
-          RF2G4_RX_Mode_X();	// æ¥æ”¶æ¨¡å¼
+          RF2G4_TX_Mode_X();	// ·¢ÉäÄ£Ê½
+          RF2G4_Tx_Packet((u8 *)RF2G4_Send_Data,14);		//·µ»Ø³µ×Óµ±Ç°×´Ì¬
+          RF2G4_RX_Mode_X();	// ½ÓÊÕÄ£Ê½
       }
-      else if (ret == 0) //æ”¶åˆ°äº†æ•°æ®
+      else if (ret == 0) //ÊÕµ½ÁËÊı¾İ
       {
-          if(RF2G4_Receive_Data[0] == 251 ||    //æ¥æ”¶å‡ºé”™
+          if(RF2G4_Receive_Data[0] == 251 ||    //½ÓÊÕ³ö´í
                 RF2G4_Receive_Data[1] == 251 ||
                 RF2G4_Receive_Data[2] == 251 ||
                 RF2G4_Receive_Data[3] == 251 ||
@@ -181,28 +181,28 @@ void receive_2g4_task(void const * argument)
               //osDelay(10);
               //continue;
           }
-          else if(RF2G4_Receive_Data[0] == 0xAA) //è¯·æ±‚è¿æ¥
+          else if(RF2G4_Receive_Data[0] == 0xAA) //ÇëÇóÁ¬½Ó
           {
-              RF2G4_TX_Mode_X();	// å‘å°„æ¨¡å¼
-              RF2G4_Tx_Packet((u8 *)RF2G4_Receive_Data,14);		//è¿”å›æ¡æ‰‹åŒ…
-              RF2G4_RX_Mode_X();	// æ¥æ”¶æ¨¡å¼
+              RF2G4_TX_Mode_X();	// ·¢ÉäÄ£Ê½
+              RF2G4_Tx_Packet((u8 *)RF2G4_Receive_Data,14);		//·µ»ØÎÕÊÖ°ü
+              RF2G4_RX_Mode_X();	// ½ÓÊÕÄ£Ê½
               sum = 0;
           }
-          else if(RF2G4_Receive_Data[0] == 0 || RF2G4_Receive_Data[0] == 1) //æŒ‰é”®
+          else if(RF2G4_Receive_Data[0] == 0 || RF2G4_Receive_Data[0] == 1) //°´¼ü
           {
 
 
           }
           sum++;
 
-          //æ‰“å°æ‰€æœ‰æ¥æ”¶åˆ°çš„ä¿¡æ¯
+          //´òÓ¡ËùÓĞ½ÓÊÕµ½µÄĞÅÏ¢
           RTT_printf(0, "%d: ",sum);
           for(u32 i = 0; i <14 ; i++)
             RTT_printf(0, "%d,", RF2G4_Receive_Data[i]);
           RTT_printf(0, "\r\n");
       }
 
-      RF2G4_RX_Mode_X();	// æ¥æ”¶æ¨¡å¼
+      RF2G4_RX_Mode_X();	// ½ÓÊÕÄ£Ê½
       osDelay(10);
   }
   /* USER CODE END receive_2g4_task */
