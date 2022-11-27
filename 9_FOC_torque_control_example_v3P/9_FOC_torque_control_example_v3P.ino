@@ -1,4 +1,4 @@
-/**
+  /**
 Deng's FOC 双电机 FOC电流控制例程 测试库：SimpleFOC 2.2.1 测试硬件：灯哥开源FOC V3.0
 在串口窗口中输入：A+电流控制M0，B+电流控制M1，电流单位为A
 setup()中可取消注释设置电压限制与电流限制
@@ -8,6 +8,13 @@ setup()中可取消注释设置电压限制与电流限制
 */
 
 #include <SimpleFOC.h>
+
+//定时器
+hw_timer_t *timer = NULL;
+uint32_t flag = 0;
+static void IRAM_ATTR Timer0_CallBack(void);
+float sensor1AngleBuf = 0.0f;
+float sensor2AngleBuf = 0.0f;
 
 //电机实例
 BLDCMotor motor1 = BLDCMotor(7);
@@ -141,6 +148,12 @@ void setup() {
   command.add('A', doMotor1, "motor 1");
   command.add('B', doMotor2, "motor 2");
 
+  //定时器初始化
+  timer = timerBegin(0, 80, true);//设置定时器0,80分频，向上计数
+  timerAttachInterrupt(timer, Timer0_CallBack, true);
+  timerAlarmWrite(timer, 100000, true);//设置定时器，定时0.1s 单位us
+  timerAlarmEnable(timer);  //开始计数
+
   Serial.println(F("Double motor sketch ready."));
   Serial2.println(F("OK."));  //不知道为啥第一次发送是乱码
   Serial2.println(F("OK."));
@@ -150,7 +163,6 @@ void setup() {
 
 
 void loop() {
-  //Serial2.println(sensor2.getAngle());  //打印电机角度
   // iterative setting FOC phase voltage
   motor1.loopFOC();
   motor2.loopFOC();
@@ -240,4 +252,26 @@ void loop() {
     }
   }
   
+  if(flag == 1) //每100ms回传一次数据
+  {
+      flag = 0;
+      float buf = 0.0f;
+
+      buf = sensor1.getAngle();
+      Serial2.print('L');
+      Serial2.print(buf - sensor1AngleBuf);  //打印电机角度
+      sensor1AngleBuf = buf;
+
+      buf = sensor2.getAngle();
+      Serial2.print('R');
+      Serial2.println(buf - sensor2AngleBuf);  //打印电机角度
+      sensor2AngleBuf = buf;
+      
+  }
+}
+
+//定时器回调函数
+static void IRAM_ATTR Timer0_CallBack(void)
+{
+  flag = 1;
 }
