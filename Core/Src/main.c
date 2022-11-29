@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "dma.h"
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
@@ -88,6 +89,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
@@ -99,6 +101,12 @@ int main(void)
     else
     {  RTT_printf(0, "2G4 OK!\r\n"); }
     RTT_printf(0, "HARDWARE init success!\r\n");
+
+    StartUartRxDMA(&huart1); //开启串口1 DMA接收
+    StartUartRxDMA(&huart2); //开启串口2 DMA接收
+
+    //确定uart2收到OK字样，驱动完成
+    //下面开始进程
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
