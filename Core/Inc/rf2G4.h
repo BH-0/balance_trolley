@@ -20,13 +20,13 @@ volatile extern u8 RF2G4_Send_Data[14];
 //0:ON/OFF
 //1:pitch_H
 //2:pitch_L
-//3:roll_H
-//4:roll_L
-//5:yaw_H
-//6:yaw_L
-//7:
-//8:
-//9:
+//3:yaw_H
+//4:yaw_L
+//5:Kp*100  平衡p
+//6:Kd*1000 平衡d
+//7:Kp_speed 速度p
+//8:Kp_turn*100 转向p
+//9:Kd_turn*100 转向d
 //10:
 //11:
 //12:

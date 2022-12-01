@@ -26,9 +26,11 @@
 uint8_t JY61_res_bit = 0;   //读取到数据
 struct SAcc 	stcAcc = {0};   //加速度传感器原始数据
 struct SGyro 	stcGyro = {0};    //陀螺仪原始数据
+float gyrox=0, gyroy=0, gyroz=0;  //陀螺仪原始数据(角速度)
 struct SAngle 	stcAngle = {0};   //欧拉角
 float pitch = 0, roll = 0, yaw = 0;			 //欧拉角
 float Encoder_Left = 0, Encoder_Right = 0; //左右编码器的转速，单位：弧度/100毫秒
+uint8_t foc_ready = 0; //foc就绪标志
 
 unsigned char RxBuffer[UART_RX_BUF_SIZE] = {0};
 unsigned char TxBuffer[UART_RX_BUF_SIZE] = {0};

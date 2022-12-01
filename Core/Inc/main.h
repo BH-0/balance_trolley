@@ -34,6 +34,7 @@ extern "C" {
 #include "SEGGER_RTT.h"
 #include "sys.h"
 #include "rf2G4.h"
+#include "pid.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
