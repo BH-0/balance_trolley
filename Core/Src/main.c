@@ -58,7 +58,7 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+extern void VL53L0X_Init(void);
 /* USER CODE END 0 */
 
 /**
@@ -95,6 +95,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
+    RTT_printf(0, "Compile Time: %s  %s\n", __DATE__, __TIME__);
+    VL53L0X_Init();
     RF2G4_Init();
     if(RF2G4_Check())
     {  RTT_printf(0, "2G4 ERROR!\r\n"); }

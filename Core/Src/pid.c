@@ -1,18 +1,19 @@
 #include "pid.h"
 
 PID pid = {0};
+extern uint16_t Tof_Value; //距离
 
 void PID_Init()
 {
     /*平衡PID环控制参数初始化*/
     pid.Sv = 0;	  //用户设定平衡位置值
-    pid.Kp = 1.47f; //平衡比例项系数 + 1.47
+    pid.Kp = 1.50f; //平衡比例项系数 + 1.47
     RF2G4_Send_Data[5] = pid.Kp*100;
-    pid.Kd = 0.075f; //平衡微分项系数 + 0.072
+    pid.Kd = 0.085f; //平衡微分项系数 + 0.075
     RF2G4_Send_Data[6] = pid.Kd*1000;
 
     /*速度PID环控制参数初始化*/
-    pid.Kp_speed = 86;	  //速度环比例项系数 + 80
+    pid.Kp_speed = 95;	  //速度环比例项系数 + 86
     RF2G4_Send_Data[7] = pid.Kp_speed;
     pid.Ki_speed = 0.4f; //速度环积分项系数 (一般为Kp/200) 0.375
     pid.EK_speed = 0;	  //速度偏差
@@ -27,9 +28,11 @@ void PID_Init()
     pid.Angle_turn = 0;	 //目标转向角度
 
 
-    pid.Flag_Left = 0;
+    pid.Flag_Left = 0;  //转向标志
     pid.Flag_Right = 0;
-    pid.Turn_Amplitude = 2;
+    pid.Turn_Amplitude = 2; //转速
+
+    uint8_t brake = 1;//刹车标志
 }
 
 /**************************************************************************
@@ -60,8 +63,26 @@ int balance(float Angle)
 /*小车速度环部分， 积分+比例控制*/
 int velocity(float encoder_left, float encoder_right)
 {
-
     int velocity;
+    if(RF2G4_Send_Data[13] == 2)    //跟随模式
+    {
+        if(Tof_Value>80 && Tof_Value <= 400)    //响应范围
+        {
+            pid.Set_Speed = (float)(Tof_Value-240)/1250/-1;
+        }
+    }
+    else if (RF2G4_Send_Data[13] == 1)  //避障模式
+    {
+        if(Tof_Value>80 && Tof_Value <= 400)    //响应范围
+        {
+            if(pid.Set_Speed < 0)   //前进
+            {
+                pid.Set_Speed *= (float)(Tof_Value-240)/160 ;
+                if(Tof_Value<300)
+                    pid.SEK_speed = 0;
+            }
+        }
+    }
     pid.EK_speed *= 0.7f;
     pid.EK_speed = pid.EK_speed + ((encoder_left + encoder_right) / 10 - 0) * 0.3f; //===一阶低通滤波器
     pid.SEK_speed = pid.SEK_speed + pid.EK_speed + pid.Set_Speed * 4;			   //===积分出位移
@@ -72,9 +93,18 @@ int velocity(float encoder_left, float encoder_right)
     if (pid.SEK_speed < -100)
         pid.SEK_speed = -100;
     //===积分限幅
-    velocity = pid.Kp_speed * pid.EK_speed + (pid.Ki_speed * pid.SEK_speed);
-    if (pitch < -30 || pitch > 30)
+//    if(pid.brake == 0)//刹车标志
+//        velocity = pid.Kp_speed * pid.EK_speed + (pid.Ki_speed * pid.SEK_speed);
+//    else
+    velocity = pid.Kp_speed * pid.EK_speed + (pid.Ki_speed* pid.SEK_speed);
+    if (pitch < -40 || pitch > 40)
         pid.SEK_speed = 0;
+
+        //限幅
+        if (velocity > 30)
+            velocity = 30;
+        if (velocity < -30)
+            velocity = -30;
 
     return velocity;
 }
@@ -88,7 +118,7 @@ int turn(float gyro) //转向控制
     Bias = (gyro - pid.Angle_turn);
     if(Bias >= 180) {
         Bias = 360 - Bias;
-        RTT_printf(1,":%f\r\n",Bias);
+        //RTT_printf(1,":%f\r\n",Bias);
     }
     else if(Bias <= -180)
         Bias = 360 + Bias;

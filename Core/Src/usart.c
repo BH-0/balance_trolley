@@ -25,6 +25,7 @@
 
 uint8_t JY61_res_bit = 0;   //读取到数据
 struct SAcc 	stcAcc = {0};   //加速度传感器原始数据
+float aacx=0, aacy=0, aacz=0;	//加速度传感器原始数据
 struct SGyro 	stcGyro = {0};    //陀螺仪原始数据
 float gyrox=0, gyroy=0, gyroz=0;  //陀螺仪原始数据(角速度)
 struct SAngle 	stcAngle = {0};   //欧拉角
@@ -412,7 +413,7 @@ void ProcessData(UART_HandleTypeDef *huart)
         {
             //收到后的处理代码
             JY61_res_bit = 1;
-            RTT_printf(0, "--%d\r\n",RxLen);
+            //RTT_printf(0, "--%d\r\n",RxLen);
         }
     }
     if(huart == &huart2)

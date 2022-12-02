@@ -28,6 +28,8 @@ typedef struct
     uint8_t Flag_Left;  //左转
     uint8_t Flag_Right; //右转
     float Turn_Amplitude;   //速度
+
+    uint8_t brake;//刹车标志
 } PID;
 
 

@@ -48,17 +48,18 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-
+uint16_t Tof_Value = 0; //距离
 /* USER CODE END Variables */
 osThreadId TestTaskHandle;
 osThreadId receive_2g4Handle;
 osThreadId pid_processHandle;
 osThreadId receive_JY61Handle;
 osThreadId receive_EncoderHandle;
+osThreadId receive_vl53l0xHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-
+extern uint16_t VL53L0X_GetValue(void);
 /* USER CODE END FunctionPrototypes */
 
 void testTask(void const * argument);
@@ -66,6 +67,7 @@ void receive_2g4_task(void const * argument);
 void pid_process_task(void const * argument);
 void receive_JY61_task(void const * argument);
 void receive_Encoder_task(void const * argument);
+void receive_vl53l0x_task(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -131,6 +133,10 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of receive_Encoder */
   osThreadDef(receive_Encoder, receive_Encoder_task, osPriorityLow, 0, 128);
   receive_EncoderHandle = osThreadCreate(osThread(receive_Encoder), NULL);
+
+  /* definition and creation of receive_vl53l0x */
+  osThreadDef(receive_vl53l0x, receive_vl53l0x_task, osPriorityLow, 0, 128);
+  receive_vl53l0xHandle = osThreadCreate(osThread(receive_vl53l0x), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -218,6 +224,14 @@ void receive_2g4_task(void const * argument)
                   count = 0;
                   RF2G4_Send_Data[0] = !RF2G4_Send_Data[0];
               }
+              if(RF2G4_Receive_Data[9] == 1 && foc_ready == 1 && count> 20)    //右摇杆控按下模式切换
+              {
+                  count = 0;
+                  if(RF2G4_Send_Data[13] >= 2)
+                      RF2G4_Send_Data[13] = 0;
+                  else
+                      RF2G4_Send_Data[13] ++;
+              }
 
               if(RF2G4_Receive_Data[5] == 1 && count> 10)    //A+
               {
@@ -273,73 +287,83 @@ void receive_2g4_task(void const * argument)
                   RF2G4_Send_Data[9] = pid.Kd_turn*-100;
               }
 
+
               //速度控制
               if(RF2G4_Receive_Data[10]!=0 && (RF2G4_Receive_Data[10]<125 || RF2G4_Receive_Data[10]>145))
               {
-                  pid.Set_Speed = (float)RF2G4_Receive_Data[10]*-0.5f/255+0.25f;
+                  if(RF2G4_Send_Data[13] != 2)  //不在跟随模式下
+                    pid.Set_Speed = (float)RF2G4_Receive_Data[10]*-0.5f/255+0.25f;
+                  pid.brake = 0;//刹车标志
               }
               else
               {
                   pid.Set_Speed = 0;
+                  if(pid.brake == 0)
+                      pid.SEK_speed *= 0.6f;    //累计速度差减弱，刹车更快
+                  pid.brake = 1;//刹车标志
               }
 
-              //大方向控制
-              if(RF2G4_Receive_Data[12]!=0 && (RF2G4_Receive_Data[12]<120 || RF2G4_Receive_Data[12]>145))
+              if(RF2G4_Send_Data[13] != 2)  //不在跟随模式下
               {
-//                  pid.Angle_turn += (float)(RF2G4_Receive_Data[12]-127)/10;    //缩小系数
-//                  if(pid.Angle_turn >= 180)
-//                      pid.Angle_turn = -179.80f;
-//                  else if(pid.Angle_turn <= -180)
-//                      pid.Angle_turn = 179.80f;
-                  //RTT_printf(1,":%f\r\n",pid.Angle_turn);
-                  if(RF2G4_Receive_Data[12] <127)
+                  //大方向控制
+                  if(RF2G4_Receive_Data[12]!=0 && (RF2G4_Receive_Data[12]<120 || RF2G4_Receive_Data[12]>145))
                   {
-                      pid.Flag_Left = 0;
-                      pid.Flag_Right = 1;
-                      pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[12]-127)/-30;
+    //                  pid.Angle_turn += (float)(RF2G4_Receive_Data[12]-127)/10;    //缩小系数
+    //                  if(pid.Angle_turn >= 180)
+    //                      pid.Angle_turn = -179.80f;
+    //                  else if(pid.Angle_turn <= -180)
+    //                      pid.Angle_turn = 179.80f;
+                      //RTT_printf(1,":%f\r\n",pid.Angle_turn);
+                      if(RF2G4_Receive_Data[12] <127)
+                      {
+                          pid.Flag_Left = 0;
+                          pid.Flag_Right = 1;
+                          pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[12]-127)/-30;
+                      }
+                      else
+                      {
+                          pid.Flag_Left = 1;
+                          pid.Flag_Right = 0;
+                          pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[12]-127)/30;
+                      }
+                  } //小方向控制
+                  else if(RF2G4_Receive_Data[11]!=0 && (RF2G4_Receive_Data[11]<110 || RF2G4_Receive_Data[11]>145) &&
+                          (RF2G4_Receive_Data[10]<110 || RF2G4_Receive_Data[10]>150))
+                  {
+    //                  pid.Angle_turn += (float)(RF2G4_Receive_Data[11]-127)/20;    //缩小系数
+    //                  if(pid.Angle_turn >= 180)
+    //                      pid.Angle_turn = -179.80f;
+    //                  else if(pid.Angle_turn <= -180)
+    //                      pid.Angle_turn = 179.80f;
+                      //RTT_printf(1,":%f\r\n",pid.Angle_turn);
+                      if(RF2G4_Receive_Data[11] <127)
+                      {
+                          pid.Flag_Left = 0;
+                          pid.Flag_Right = 1;
+                          pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[11]-127)/-50;
+                      }
+                      else
+                      {
+                          pid.Flag_Left = 1;
+                          pid.Flag_Right = 0;
+                          pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[11]-127)/50;
+                      }
                   }
                   else
                   {
-                      pid.Flag_Left = 1;
-                      pid.Flag_Right = 0;
-                      pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[12]-127)/30;
-                  }
-              } //小方向控制
-              else if(RF2G4_Receive_Data[11]!=0 && (RF2G4_Receive_Data[11]<110 || RF2G4_Receive_Data[11]>145) &&
-                      (RF2G4_Receive_Data[10]<110 || RF2G4_Receive_Data[10]>150))
-              {
-//                  pid.Angle_turn += (float)(RF2G4_Receive_Data[11]-127)/20;    //缩小系数
-//                  if(pid.Angle_turn >= 180)
-//                      pid.Angle_turn = -179.80f;
-//                  else if(pid.Angle_turn <= -180)
-//                      pid.Angle_turn = 179.80f;
-                  //RTT_printf(1,":%f\r\n",pid.Angle_turn);
-                  if(RF2G4_Receive_Data[11] <127)
-                  {
-                      pid.Flag_Left = 0;
-                      pid.Flag_Right = 1;
-                      pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[11]-127)/-50;
-                  }
-                  else
-                  {
-                      pid.Flag_Left = 1;
-                      pid.Flag_Right = 0;
-                      pid.Turn_Amplitude = (float)(RF2G4_Receive_Data[11]-127)/50;
+                      pid.Flag_Left = pid.Flag_Right = 0;
                   }
               }
-              else
-              {
-                  pid.Flag_Left = pid.Flag_Right = 0;
-              }
-
           }
           sum++;
 
-          //打印所有接收到的信息
+
+#if 0   //打印所有接收到的信息
           RTT_printf(0, "%d: ",sum);
           for(i = 0; i <14 ; i++)
             RTT_printf(0, "%d,", RF2G4_Receive_Data[i]);
           RTT_printf(0, "\r\n");
+#endif
       }
       count++;
       RF2G4_RX_Mode_X();	// 接收模式
@@ -418,6 +442,17 @@ void receive_JY61_task(void const * argument)
               for(int i=0;i<RxLen;i++)
               {
                   //RTT_printf(2, "%d,", RxBuffer[i]);
+                  if(RxBuffer[i] == 0x55 && RxBuffer[i+1] == 0x51)
+                  {
+                      //陀螺仪加速度数据处理
+                      memcpy(&stcAcc,&RxBuffer[i+2],8);
+
+                      aacx = (float)stcAcc.a[0]/32768*16;
+                      aacy = (float)stcAcc.a[1]/32768*16;
+                      aacz = (float)stcAcc.a[2]/32768*16;
+                      //陀螺仪数据
+                      //RTT_printf(3,"Acc:%.3f :%.3f :%.3f\r\n",aacx,aacy,aacz);
+                  }
                   if(RxBuffer[i] == 0x55 && RxBuffer[i+1] == 0x52)
                   {
                       //陀螺仪角速度数据处理
@@ -427,7 +462,7 @@ void receive_JY61_task(void const * argument)
                       gyroy = (float)stcGyro.w[1]/32768*2000;
                       gyroz = (float)stcGyro.w[2]/32768*2000;
                       //陀螺仪数据
-                      RTT_printf(5,":%.3f :%.3f :%.3f\r\n",gyrox,gyroy,gyroz);
+                      //RTT_printf(5,":%.3f :%.3f :%.3f\r\n",gyrox,gyroy,gyroz);
                   }
                   if(RxBuffer[i] == 0x55 && RxBuffer[i+1] == 0x53 && (RxLen-i)>= 11)
                   {
@@ -443,12 +478,12 @@ void receive_JY61_task(void const * argument)
                       roll = (float)stcAngle.Angle[0]/32768*180;
                       yaw = (float)stcAngle.Angle[2]/32768*180;
 
-                      if(pitch>60 || pitch<-60 ||
+                      if(pitch>60 || pitch<-70 ||
                               roll>60 || roll<-60)
-                          RF2G4_Send_Data[0] = 0;   //超速失能
+                          RF2G4_Send_Data[0] = 0;   //翻车失能
 
                       //输出角度
-                      RTT_printf(3,"pitch:%.3f roll:%.3f yaw:%.3f\r\n",pitch,roll,yaw);
+                      //RTT_printf(3,"pitch:%.3f roll:%.3f yaw:%.3f\r\n",pitch,roll,yaw);
                       JY61_res_bit = 1;
                   }
               }
@@ -497,7 +532,7 @@ void receive_Encoder_task(void const * argument)
                   if(Encoder_Left>15 || Encoder_Left<-15 || Encoder_Right>15 || Encoder_Right<-15)
                       RF2G4_Send_Data[0] = 0;   //超速失能
               }
-              RTT_printf(4,"%f,%f\r\n",Encoder_Left, Encoder_Right);
+              //RTT_printf(4,"%f,%f\r\n",Encoder_Left, Encoder_Right);  //打印编码器
 
           }
           StartUartRxDMA(&huart2);  //开启DMA
@@ -506,6 +541,37 @@ void receive_Encoder_task(void const * argument)
     osDelay(10);
   }
   /* USER CODE END receive_Encoder_task */
+}
+
+/* USER CODE BEGIN Header_receive_vl53l0x_task */
+/**
+* @brief Function implementing the receive_vl53l0x thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_receive_vl53l0x_task */
+void receive_vl53l0x_task(void const * argument)
+{
+  /* USER CODE BEGIN receive_vl53l0x_task */
+  /* Infinite loop */
+  for(;;)
+  {
+      uint16_t Value = 0;
+      Value = VL53L0X_GetValue();
+
+      if(Value!=20 && Value!=8190 && Value!= 8191)
+      {
+          Tof_Value = Value;
+          RTT_printf(2,"d=%d\r\n",Tof_Value);
+      }
+      else
+      {
+          Tof_Value = 0xFFFF;
+      }
+
+      osDelay(10);
+  }
+  /* USER CODE END receive_vl53l0x_task */
 }
 
 /* Private application code --------------------------------------------------*/

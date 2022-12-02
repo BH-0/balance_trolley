@@ -50,8 +50,9 @@ extern UART_HandleTypeDef huart6;
 
 extern uint8_t JY61_res_bit;   //读取到数据
 extern struct SAcc 		stcAcc; //加速度传感器原始数据
-extern float gyrox, gyroy, gyroz;		 //陀螺仪原始数据
+extern float aacx, aacy, aacz;			 //加速度传感器原始数据
 extern struct SGyro 		stcGyro;    //陀螺仪原始数据
+extern float gyrox, gyroy, gyroz;		 //陀螺仪原始数据
 extern struct SAngle 	stcAngle;   //欧拉角
 extern float pitch, roll, yaw;			 //欧拉角
 extern float Encoder_Left, Encoder_Right; //左右编码器的转速，单位：弧度/100毫秒
