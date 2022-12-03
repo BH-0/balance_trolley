@@ -94,6 +94,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
     RTT_printf(0, "Compile Time: %s  %s\n", __DATE__, __TIME__);
     VL53L0X_Init();
@@ -196,7 +197,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+    if (htim->Instance == TIM4) {
+        //WS2812_Send();
+    }
   /* USER CODE END Callback 1 */
 }
 

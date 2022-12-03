@@ -29,6 +29,7 @@
 #include "pid.h"
 #include <string.h>
 #include <stdio.h>
+#include "Adafruit_NeoPixel.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,24 +51,26 @@
 /* USER CODE BEGIN Variables */
 uint16_t Tof_Value = 0; //距离
 /* USER CODE END Variables */
-osThreadId TestTaskHandle;
+osThreadId LED_RGBHandle;
 osThreadId receive_2g4Handle;
 osThreadId pid_processHandle;
 osThreadId receive_JY61Handle;
 osThreadId receive_EncoderHandle;
 osThreadId receive_vl53l0xHandle;
+osThreadId testTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 extern uint16_t VL53L0X_GetValue(void);
 /* USER CODE END FunctionPrototypes */
 
-void testTask(void const * argument);
+void LED_RGB_task(void const * argument);
 void receive_2g4_task(void const * argument);
 void pid_process_task(void const * argument);
 void receive_JY61_task(void const * argument);
 void receive_Encoder_task(void const * argument);
 void receive_vl53l0x_task(void const * argument);
+void test_Task(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -114,9 +117,9 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of TestTask */
-  osThreadDef(TestTask, testTask, osPriorityIdle, 0, 128);
-  TestTaskHandle = osThreadCreate(osThread(TestTask), NULL);
+  /* definition and creation of LED_RGB */
+  osThreadDef(LED_RGB, LED_RGB_task, osPriorityNormal, 0, 128);
+  LED_RGBHandle = osThreadCreate(osThread(LED_RGB), NULL);
 
   /* definition and creation of receive_2g4 */
   osThreadDef(receive_2g4, receive_2g4_task, osPriorityLow, 0, 128);
@@ -138,29 +141,49 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(receive_vl53l0x, receive_vl53l0x_task, osPriorityLow, 0, 128);
   receive_vl53l0xHandle = osThreadCreate(osThread(receive_vl53l0x), NULL);
 
+  /* definition and creation of testTask */
+  osThreadDef(testTask, test_Task, osPriorityIdle, 0, 128);
+  testTaskHandle = osThreadCreate(osThread(testTask), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
 }
 
-/* USER CODE BEGIN Header_testTask */
+/* USER CODE BEGIN Header_LED_RGB_task */
 /**
-  * @brief  Function implementing the TestTask thread.
+  * @brief  Function implementing the LED_RGB thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_testTask */
-void testTask(void const * argument)
+/* USER CODE END Header_LED_RGB_task */
+void LED_RGB_task(void const * argument)
 {
-  /* USER CODE BEGIN testTask */
+  /* USER CODE BEGIN LED_RGB_task */
   /* Infinite loop */
+  uint16_t sum = 0;
+  WS2812B_Init();
+
+  //等待初始化
+  //while (foc_ready == 0){}
+
   for(;;)
   {
-      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);   //LED闪烁
-      osDelay(100);
+      //colorWipe(Color(255,255,0),2);
+      double_rotating(SKY, YELLOW, 100);
+      //rainbowCycle(2);
+      if(sum >= 11)
+      {
+          RTT_printf(1,"11\r\n");
+
+          sum = 0;
+      }
+      sum++;
+
+      osDelay(10);
   }
-  /* USER CODE END testTask */
+  /* USER CODE END LED_RGB_task */
 }
 
 /* USER CODE BEGIN Header_receive_2g4_task */
@@ -233,6 +256,8 @@ void receive_2g4_task(void const * argument)
                       RF2G4_Send_Data[13] ++;
               }
 
+#define PID_SET 0
+#if PID_SET
               if(RF2G4_Receive_Data[5] == 1 && count> 10)    //A+
               {
                   count = 0;
@@ -286,7 +311,64 @@ void receive_2g4_task(void const * argument)
                   pid.Kd_turn -= 0.01f;
                   RF2G4_Send_Data[9] = pid.Kd_turn*-100;
               }
+#else
+              if(RF2G4_Receive_Data[0] == 1 && count> 10)    //UP
+              {
+                  count = 0;
+                  //RGB亮度
+                  if(RGB_cmd_bit*2 >= 1)
+                      RGB_cmd_bit = 1;
+                  else if(RGB_cmd_bit == 0)
+                      RGB_cmd_bit = 0.025f;
+                  else
+                      RGB_cmd_bit*=2;
+              }
+              else if(RF2G4_Receive_Data[1] == 1 && count> 10)    //DOWN
+              {
+                  count = 0;
+                  //RGB亮度
+                  if(RGB_cmd_bit/2 <= 0.02f)
+                      RGB_cmd_bit = 0;
+                  else
+                      RGB_cmd_bit/=2;
+              }
 
+              if(RF2G4_Receive_Data[2] == 1 && count> 10)    //LEFT
+              {
+                  count = 0;
+
+              }
+              else if(RF2G4_Receive_Data[3] == 1 && count> 10)    //RIGHT
+              {
+                  count = 0;
+
+              }
+
+              if(RF2G4_Receive_Data[5] == 1 && count> 10)    //A+
+              {
+                  count = 0;
+
+
+              }
+              else if(RF2G4_Receive_Data[4] == 1 && count> 10)    //A
+              {
+                  count = 0;
+
+
+              }
+
+              if(RF2G4_Receive_Data[7] == 1 && count> 10)    //B+
+              {
+                  count = 0;
+
+              }
+              else if(RF2G4_Receive_Data[6] == 1 && count> 10)    //B
+              {
+                  count = 0;
+
+              }
+
+#endif /*PID_SET*/
 
               //速度控制
               if(RF2G4_Receive_Data[10]!=0 && (RF2G4_Receive_Data[10]<125 || RF2G4_Receive_Data[10]>145))
@@ -572,6 +654,25 @@ void receive_vl53l0x_task(void const * argument)
       osDelay(10);
   }
   /* USER CODE END receive_vl53l0x_task */
+}
+
+/* USER CODE BEGIN Header_test_Task */
+/**
+* @brief Function implementing the testTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_test_Task */
+void test_Task(void const * argument)
+{
+  /* USER CODE BEGIN test_Task */
+  /* Infinite loop */
+  for(;;)
+  {
+      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);   //LED闪烁
+      osDelay(100);
+  }
+  /* USER CODE END test_Task */
 }
 
 /* Private application code --------------------------------------------------*/

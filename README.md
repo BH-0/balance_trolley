@@ -1,1 +1,2 @@
 # balance_trolley
+此工程使用cubemx生成代码，CLion为IDE，JLinkGDBServerCL.exe作为下载及调试
