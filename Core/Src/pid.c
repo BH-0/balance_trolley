@@ -7,15 +7,15 @@ void PID_Init()
 {
     /*平衡PID环控制参数初始化*/
     pid.Sv = 0;	  //用户设定平衡位置值
-    pid.Kp = 1.50f; //平衡比例项系数 + 1.47
-    RF2G4_Send_Data[5] = pid.Kp*100;
-    pid.Kd = 0.085f; //平衡微分项系数 + 0.075
-    RF2G4_Send_Data[6] = pid.Kd*1000;
+    pid.Kp = 6.20f;  //2.50//MPU6050 1.50f; //平衡比例项系数 + 1.47
+    RF2G4_Send_Data[5] = pid.Kp*10;
+    pid.Kd = 0.50f;  //0.26//MPU60500.085f; //平衡微分项系数 + 0.075
+    RF2G4_Send_Data[6] = pid.Kd*100;
 
     /*速度PID环控制参数初始化*/
-    pid.Kp_speed = 95;	  //速度环比例项系数 + 86
+    pid.Kp_speed = 100;	  //速度环比例项系数 + 95
     RF2G4_Send_Data[7] = pid.Kp_speed;
-    pid.Ki_speed = 0.4f; //速度环积分项系数 (一般为Kp/200) 0.375
+    pid.Ki_speed = 0.35f; //速度环积分项系数 (一般为Kp/200) 0.375
     pid.EK_speed = 0;	  //速度偏差
     pid.SEK_speed = 0;	  //历史偏差之和
     pid.Set_Speed = 0;	  //目标速度
@@ -117,11 +117,13 @@ int turn(float gyro) //转向控制
 
     Bias = (gyro - pid.Angle_turn);
     if(Bias >= 180) {
-        Bias = 360 - Bias;
+        Bias = -(360 - Bias);
         //RTT_printf(1,":%f\r\n",Bias);
     }
     else if(Bias <= -180)
+    {
         Bias = 360 + Bias;
+    }
     Turn = (int)(Bias * pid.Kp_turn) + pid.Kd_turn * gyroz;
     /*进行转向速度的单独限幅*/
     if (Turn >= 30)
@@ -184,6 +186,8 @@ int turn_x(float encoder_left,float encoder_right,float gyro)
 //函数功能：限幅函数
 void Xianfu_Pwm(int *Moto_Left, int *Moto_Right)
 {
+    static int Moto_Left_last = 0;
+    static int Moto_Right_last = 0;
     int Amplitude = 100; //最大100 最小-100
     if (*Moto_Left < -Amplitude)
         *Moto_Left = -Amplitude;
@@ -193,4 +197,16 @@ void Xianfu_Pwm(int *Moto_Left, int *Moto_Right)
         *Moto_Right = -Amplitude;
     if (*Moto_Right > Amplitude)
         *Moto_Right = Amplitude;
+
+    //异常转速变化
+    if((Moto_Left_last-*Moto_Left)>50 || (Moto_Left_last-*Moto_Left)<-50)
+        *Moto_Left = Moto_Left_last;
+    else
+        Moto_Left_last = *Moto_Left;
+
+    if((Moto_Right_last-*Moto_Right)>50 || (Moto_Right_last-*Moto_Right)<-50)
+        *Moto_Right = Moto_Right_last;
+    else
+        Moto_Right_last = *Moto_Right;
+
 }

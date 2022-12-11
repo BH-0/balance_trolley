@@ -17,7 +17,7 @@ extern const u8 RF2G4_ADDR_RX[5];
 volatile extern u8 RF2G4_Send_Data[14];
 //--------------------------------------
 //标志位定义：
-//0:ON/OFF
+//0:ON/OFF 0x00关 0x80超速失能 0x40翻车失能 0x01开
 //1:pitch_H
 //2:pitch_L
 //3:yaw_H

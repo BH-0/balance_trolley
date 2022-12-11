@@ -3,8 +3,23 @@
 #define PIXEL_MAX 8
 
 float RGB_cmd_bit = 0.05f;    //亮度控制
-uint8_t RGB_mode_bit = 0;   //RGB模式
+uint8_t RGB_mode_bit = 0x80;   //RGB模式
 
+//呼吸控制
+/* 呼吸灯曲线表 */
+const uint16_t index_wave[] = {/*1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4,
+                               4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 12, 12,*/
+                               13, 13, 14, 14, 15, 15, 16, 16, 17, 18, 18, 19, 20, 20, 21, 22, 23, 24, 25, 25, 26, 27, 28, 30, 31, 32, 33,
+                               34, 36, 37, 38, 40, 41, 43, 45, 46, 48, 50, 52, 54, 56, 58, 60, 62, 65, 67, 70, 72, 75, 78, 81, 84, 87, 90,
+                               94, 97, 101, 105, 109, 113, 117, 122, 126, 131, 136, 141, 146, 152, 158, 164, 170, 176, 183, 190, 197, 205,
+                               213, 221, 229, 238, 247, 256, 256, 247, 238, 229, 221, 213, 205, 197, 190, 183, 176, 170, 164, 158, 152, 146,
+                               141, 136, 131, 126, 122, 117, 113, 109, 105, 101, 97, 94, 90, 87, 84, 81, 78, 75, 72, 70, 67, 65, 62, 60, 58,
+                               56, 54, 52, 50, 48, 46, 45, 43, 41, 40, 38, 37, 36, 34, 33, 32, 31, 30, 28, 27, 26, 25, 25, 24, 23, 22, 21, 20,
+                               20, 19, 18, 18, 17, 16, 16, 15, 15, 14, 14, 13, 13, 12, 12, 11, 11, 10, 10, 10, 9, 9, 9, 8, 8, 8, 7, 7, 7, 7, 6,
+                               6,/* 6, 6, 6, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                               2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1*/};
+//曲线表元素个数
+uint16_t index_wave_num = sizeof(index_wave)/sizeof(index_wave[0]);
 
 // Some Static Colors
 const RGBColor_TypeDef RED      = {255,0,0};
@@ -17,7 +32,7 @@ const RGBColor_TypeDef ORANGE   = {127,106,0};
 const RGBColor_TypeDef BLACK    = {0,0,0};
 const RGBColor_TypeDef WHITE    = {255,255,255};
 const RGBColor_TypeDef PURPLE   = {65,105,225};
-
+const RGBColor_TypeDef PINK     = {255,90,150};
 
 void Send_8bits(uint8_t dat) 
 {
@@ -145,19 +160,27 @@ uint32_t Wheel(uint8_t WheelPos)
   return Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
 //彩虹
-void rainbow(uint8_t wait)
+void rainbow(float Brightness, uint8_t wait)
 {
-  uint16_t i, j;
-  
-  for(j=0; j<256; j++) 
-  {
+  uint16_t i;
+  static uint16_t j = 0;
+  static uint32_t color_buf = 0;
+//  for(j=0; j<256; j++)
+//  {
     for(i=0; i<PIXEL_MAX; i++)
     {
-      SetPixelColor(i, Wheel((i+j) & 255));
+        color_buf =  Wheel((i+j) & 255);
+        SetPixelColor(i, Color(((color_buf>>16)&0xff)*Brightness,
+                      ((color_buf>>8)&0xff)*Brightness,
+                      (color_buf&0xff)*Brightness));
     }
     PixelUpdate();
+      if(j+1 >= 256)
+          j = 0;
+      else
+          j++;
     osDelay(wait);
-  }
+//  }
 }
 // Slightly different, this makes the rainbow equally distributed throughout
 void rainbowCycle(uint8_t wait) 
@@ -309,7 +332,37 @@ void double_rotating(RGBColor_TypeDef color1, RGBColor_TypeDef color2, uint8_t w
     osDelay(wait);
 }
 
+//双层进度条
+//入口参数：1-8第一层 9-16第二层
+void progress_bar(uint8_t level, RGBColor_TypeDef color1, RGBColor_TypeDef color2,uint8_t wait)
+{
+    uint16_t i=0;
+    if(level>=1 && level<=8)
+    {
+        for(i=0;i<PIXEL_MAX;i++)
+        {
+            if(i<level)
+                SetPixelColor(i, Color(color1.R, color1.G, color1.B));
+            else
+                SetPixelColor(i, 0);
+        }
+    }
+    else if(level>=9 && level<=16)
+    {
+        for(i=0;i<PIXEL_MAX;i++)
+        {
+            if(i<level-8)
+                SetPixelColor(i, Color(color2.R, color2.G, color2.B));
+            else
+                SetPixelColor(i, Color(color1.R, color1.G, color1.B));
+        }
+    }
+    else
+        colorWipe(0, 2);
 
+
+    osDelay(wait);
+}
 
 
 
