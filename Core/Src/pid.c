@@ -7,15 +7,15 @@ void PID_Init()
 {
     /*平衡PID环控制参数初始化*/
     pid.Sv = 0;	  //用户设定平衡位置值
-    pid.Kp = 6.20f;  //2.50//MPU6050 1.50f; //平衡比例项系数 + 1.47
+    pid.Kp = 4.30f;  //2.50//MPU6050 1.50f; //平衡比例项系数 + 1.47
     RF2G4_Send_Data[5] = pid.Kp*10;
-    pid.Kd = 0.50f;  //0.26//MPU60500.085f; //平衡微分项系数 + 0.075
+    pid.Kd = 0.48f;  //0.26//MPU60500.085f; //平衡微分项系数 + 0.075
     RF2G4_Send_Data[6] = pid.Kd*100;
 
     /*速度PID环控制参数初始化*/
-    pid.Kp_speed = 100;	  //速度环比例项系数 + 95
-    RF2G4_Send_Data[7] = pid.Kp_speed;
-    pid.Ki_speed = 0.35f; //速度环积分项系数 (一般为Kp/200) 0.375
+    pid.Kp_speed = 300;	  //速度环比例项系数 + 95
+    RF2G4_Send_Data[7] = pid.Kp_speed/10;
+    pid.Ki_speed = 1.5f; //速度环积分项系数 (一般为Kp/200) 0.375
     pid.EK_speed = 0;	  //速度偏差
     pid.SEK_speed = 0;	  //历史偏差之和
     pid.Set_Speed = 0;	  //目标速度
@@ -64,14 +64,14 @@ int balance(float Angle)
 int velocity(float encoder_left, float encoder_right)
 {
     int velocity;
-    if(RF2G4_Send_Data[13] == 2)    //跟随模式
+    if((RF2G4_Send_Data[13]&0x7F) == 2)    //跟随模式
     {
         if(Tof_Value>80 && Tof_Value <= 400)    //响应范围
         {
             pid.Set_Speed = (float)(Tof_Value-240)/1250/-1;
         }
     }
-    else if (RF2G4_Send_Data[13] == 1)  //避障模式
+    else if ((RF2G4_Send_Data[13]&0x7F) == 1)  //避障模式
     {
         if(Tof_Value>80 && Tof_Value <= 400)    //响应范围
         {
@@ -188,25 +188,29 @@ void Xianfu_Pwm(int *Moto_Left, int *Moto_Right)
 {
     static int Moto_Left_last = 0;
     static int Moto_Right_last = 0;
-    int Amplitude = 100; //最大100 最小-100
-    if (*Moto_Left < -Amplitude)
-        *Moto_Left = -Amplitude;
-    if (*Moto_Left > Amplitude)
-        *Moto_Left = Amplitude;
-    if (*Moto_Right < -Amplitude)
-        *Moto_Right = -Amplitude;
-    if (*Moto_Right > Amplitude)
-        *Moto_Right = Amplitude;
+    if(RF2G4_Send_Data[0] == 1)
+    {
+        int Amplitude = 100; //最大100 最小-100
+        if (*Moto_Left < -Amplitude)
+            *Moto_Left = -Amplitude;
+        if (*Moto_Left > Amplitude)
+            *Moto_Left = Amplitude;
+        if (*Moto_Right < -Amplitude)
+            *Moto_Right = -Amplitude;
+        if (*Moto_Right > Amplitude)
+            *Moto_Right = Amplitude;
 
-    //异常转速变化
-    if((Moto_Left_last-*Moto_Left)>40 || (Moto_Left_last-*Moto_Left)<-40)
-        *Moto_Left = Moto_Left_last;
+        //异常转速变化
+        if((Moto_Left_last-*Moto_Left)>50 || (Moto_Left_last-*Moto_Left)<-50)
+            *Moto_Left = Moto_Left_last;
+        else
+            Moto_Left_last = *Moto_Left;
+
+        if((Moto_Right_last-*Moto_Right)>50 || (Moto_Right_last-*Moto_Right)<-50)
+            *Moto_Right = Moto_Right_last;
+        else
+            Moto_Right_last = *Moto_Right;
+    }
     else
-        Moto_Left_last = *Moto_Left;
-
-    if((Moto_Right_last-*Moto_Right)>40 || (Moto_Right_last-*Moto_Right)<-40)
-        *Moto_Right = Moto_Right_last;
-    else
-        Moto_Right_last = *Moto_Right;
-
+        Moto_Left_last = Moto_Right_last = 0;
 }

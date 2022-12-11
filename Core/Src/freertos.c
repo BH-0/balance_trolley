@@ -190,7 +190,7 @@ void LED_RGB_task(void const * argument)
   {
       if((RGB_mode_bit&0x80)!= 0 && RGB_cmd_bit != 0)
       {
-          if(RF2G4_Send_Data[13] == 0)  //正常
+          if((RF2G4_Send_Data[13]&0x7F) == 0)  //正常
           {
               if(pid.brake == 1) //刹车状态
               {
@@ -203,7 +203,7 @@ void LED_RGB_task(void const * argument)
               else
                   rainbowCycle(2);  //旋转彩虹
           }
-          else if(RF2G4_Send_Data[13] == 1) //避障
+          else if((RF2G4_Send_Data[13]&0x7F) == 1) //避障
           {
               if(Tof_Value>80 && Tof_Value <= 400)    //响应范围
               {
@@ -226,7 +226,7 @@ void LED_RGB_task(void const * argument)
                   colorWipe(0x00ff00,1);    //超出响应范围全绿
               }
           }
-          else if(RF2G4_Send_Data[13] == 2) //跟随
+          else if((RF2G4_Send_Data[13]&0x7F) == 2) //跟随
           {
               if(Tof_Value>80 && Tof_Value <= 400)    //响应范围
               {
@@ -304,8 +304,9 @@ void receive_2g4_task(void const * argument)
   uint8_t ret = 0;
   uint16_t sum = 0; //接收次数计数
   uint16_t count = 0;   //消抖计数
+  uint8_t count_mode = 0;
 //  uint16_t i = 0;
-//  uint8_t RGB_mode_bit_last = 0;    //上次模式
+  uint8_t RGB_mode_bit_last = 0;    //上次模式
     RF2G4_RX_Mode();	// 接收模式
 
   /* Infinite loop */
@@ -356,158 +357,170 @@ void receive_2g4_task(void const * argument)
                   else if(RF2G4_Send_Data[0] != 0)
                       RF2G4_Send_Data[0] = 0;
               }
-              if(RF2G4_Receive_Data[9] == 1 && foc_ready == 1 && count> 20)    //右摇杆控按下模式切换
+              if(RF2G4_Receive_Data[9] == 1 && foc_ready == 1 && count> 20)    //右摇杆控按下模式切换，长按切换pid条件或RGB控制
               {
-                  count = 0;
-                  if(RF2G4_Send_Data[13] >= 2)
-                      RF2G4_Send_Data[13] = 0;
-                  else
-                      RF2G4_Send_Data[13] ++;
-              }
-
-#define PID_SET 1
-#if PID_SET
-              if(RF2G4_Receive_Data[5] == 1 && count> 10)    //A+
-              {
-                  count = 0;
-                  pid.Kp += 0.1f;
-                  RF2G4_Send_Data[5] = pid.Kp*10;
-              }
-              else if(RF2G4_Receive_Data[4] == 1 && count> 10)    //A
-              {
-                  count = 0;
-                  pid.Kp -= 0.1f;
-                  RF2G4_Send_Data[5] = pid.Kp*10;
-              }
-
-              if(RF2G4_Receive_Data[7] == 1 && count> 10)    //B+
-              {
-                  count = 0;
-                  pid.Kd += 0.01f;
-                  RF2G4_Send_Data[6] = pid.Kd*100;
-              }
-              else if(RF2G4_Receive_Data[6] == 1 && count> 10)    //B
-              {
-                  count = 0;
-                  pid.Kd -= 0.01f;
-                  RF2G4_Send_Data[6] = pid.Kd*100;
-              }
-
-              if(RF2G4_Receive_Data[0] == 1 && count> 10)    //UP
-              {
-                  count = 0;
-                  pid.Kp_speed += 1;
-                  pid.Ki_speed = pid.Kp_speed/200;
-                  RF2G4_Send_Data[7] = pid.Kp_speed;
-              }
-              else if(RF2G4_Receive_Data[1] == 1 && count> 10)    //DOWN
-              {
-                  count = 0;
-                  pid.Kp_speed -= 1;
-                  pid.Ki_speed = pid.Kp_speed/200;
-                  RF2G4_Send_Data[7] = pid.Kp_speed;
-              }
-
-              if(RF2G4_Receive_Data[2] == 1 && count> 10)    //LEFT
-              {
-                  count = 0;
-                  pid.Kd_turn += 0.01f;
-                  RF2G4_Send_Data[9] = pid.Kd_turn*-100;
-              }
-              else if(RF2G4_Receive_Data[3] == 1 && count> 10)    //RIGHT
-              {
-                  count = 0;
-                  pid.Kd_turn -= 0.01f;
-                  RF2G4_Send_Data[9] = pid.Kd_turn*-100;
-              }
-#else
-              if(RF2G4_Receive_Data[0] == 1 && count> 10)    //UP
-              {
-                  count = 0;
-                  //RGB亮度
-                  if(RGB_cmd_bit*2 >= 1)
-                      RGB_cmd_bit = 1;
-                  else if(RGB_cmd_bit == 0)
-                      RGB_cmd_bit = 0.025f;
-                  else
-                      RGB_cmd_bit*=2;
-              }
-              else if(RF2G4_Receive_Data[1] == 1 && count> 10)    //DOWN
-              {
-                  count = 0;
-                  //RGB亮度
-                  if(RGB_cmd_bit/2 <= 0.02f)
-                      RGB_cmd_bit = 0;
-                  else
-                      RGB_cmd_bit/=2;
-              }
-
-              if(RF2G4_Receive_Data[2] == 1 && count> 10)    //LEFT
-              {
-                  count = 0;
-
-              }
-              else if(RF2G4_Receive_Data[3] == 1 && count> 10)    //RIGHT
-              {
-                  count = 0;
-
-              }
-
-              if(RF2G4_Receive_Data[5] == 1 && count> 10)    //A+
-              {
-                  count = 0;
-                  //远光
-                    if((RGB_mode_bit&0x80)!= 0)
+                    count = 0;
+                    count_mode++;
+                    if(count_mode >=6)   //长按切换模式
                     {
-                        RGB_mode_bit_last = RGB_mode_bit;
-                        RGB_mode_bit = 1;
+                        count_mode = 0;
+                        RF2G4_Send_Data[13] ^= 0x80;  //取反第八位
                     }
-                    else if(RGB_mode_bit == 1)
-                    {
-                        RGB_mode_bit = RGB_mode_bit_last;
-                    }
+
+                    if((RF2G4_Send_Data[13]&0x7F) >= 2)
+                        RF2G4_Send_Data[13] &= 0x80;
                     else
-                    {
-                        RGB_mode_bit = 1;
-                    }
-
+                        RF2G4_Send_Data[13] ++;
               }
-              else if(RF2G4_Receive_Data[4] == 1 && count> 10)    //A
+              else if(RF2G4_Receive_Data[9] == 0 && foc_ready == 1 && count> 20)
+                   count_mode = 0;
+
+
+              if((RF2G4_Send_Data[13]&0x80) != 0)     //PID调节模式/////////////////////////////////////////////
               {
-                  count = 0;
-                  //警灯
-                  if((RGB_mode_bit&0x80)!= 0)
+                  if(RF2G4_Receive_Data[5] == 1 && count> 10)    //A+
                   {
-                      RGB_mode_bit_last = RGB_mode_bit;
-                      RGB_mode_bit = 2;
+                      count = 0;
+                      pid.Kp += 0.1f;
+                      RF2G4_Send_Data[5] = pid.Kp*10;
                   }
-                  else if(RGB_mode_bit == 2)
+                  else if(RF2G4_Receive_Data[4] == 1 && count> 10)    //A
                   {
-                      RGB_mode_bit = RGB_mode_bit_last;
+                      count = 0;
+                      pid.Kp -= 0.1f;
+                      RF2G4_Send_Data[5] = pid.Kp*10;
                   }
-                  else
+
+                  if(RF2G4_Receive_Data[7] == 1 && count> 10)    //B+
                   {
-                      RGB_mode_bit = 2;
+                      count = 0;
+                      pid.Kd += 0.01f;
+                      RF2G4_Send_Data[6] = pid.Kd*100;
+                  }
+                  else if(RF2G4_Receive_Data[6] == 1 && count> 10)    //B
+                  {
+                      count = 0;
+                      pid.Kd -= 0.01f;
+                      RF2G4_Send_Data[6] = pid.Kd*100;
+                  }
+
+                  if(RF2G4_Receive_Data[0] == 1 && count> 10)    //UP
+                  {
+                      count = 0;
+                      pid.Kp_speed += 10;
+                      pid.Ki_speed = pid.Kp_speed/200;
+                      RF2G4_Send_Data[7] = pid.Kp_speed/10;
+                  }
+                  else if(RF2G4_Receive_Data[1] == 1 && count> 10)    //DOWN
+                  {
+                      count = 0;
+                      pid.Kp_speed -= 10;
+                      pid.Ki_speed = pid.Kp_speed/200;
+                      RF2G4_Send_Data[7] = pid.Kp_speed/10;
+                  }
+
+                  if(RF2G4_Receive_Data[2] == 1 && count> 10)    //LEFT
+                  {
+                      count = 0;
+                      pid.Kd_turn += 0.01f;
+                      RF2G4_Send_Data[9] = pid.Kd_turn*-100;
+                  }
+                  else if(RF2G4_Receive_Data[3] == 1 && count> 10)    //RIGHT
+                  {
+                      count = 0;
+                      pid.Kd_turn -= 0.01f;
+                      RF2G4_Send_Data[9] = pid.Kd_turn*-100;
                   }
               }
-
-              if(RF2G4_Receive_Data[7] == 1 && count> 10)    //B+
+              else          //RGB调节模式/////////////////////////////////////////////
               {
-                  count = 0;
+                  if(RF2G4_Receive_Data[0] == 1 && count> 10)    //UP
+                  {
+                      count = 0;
+                      //RGB亮度
+                      if(RGB_cmd_bit*2 >= 1)
+                          RGB_cmd_bit = 1;
+                      else if(RGB_cmd_bit == 0)
+                          RGB_cmd_bit = 0.025f;
+                      else
+                          RGB_cmd_bit*=2;
+                  }
+                  else if(RF2G4_Receive_Data[1] == 1 && count> 10)    //DOWN
+                  {
+                      count = 0;
+                      //RGB亮度
+                      if(RGB_cmd_bit/2 <= 0.02f)
+                          RGB_cmd_bit = 0;
+                      else
+                          RGB_cmd_bit/=2;
+                  }
 
+                  if(RF2G4_Receive_Data[2] == 1 && count> 10)    //LEFT
+                  {
+                      count = 0;
+
+                  }
+                  else if(RF2G4_Receive_Data[3] == 1 && count> 10)    //RIGHT
+                  {
+                      count = 0;
+
+                  }
+
+                  if(RF2G4_Receive_Data[5] == 1 && count> 10)    //A+
+                  {
+                      count = 0;
+                      //远光
+                        if((RGB_mode_bit&0x80)!= 0)
+                        {
+                            RGB_mode_bit_last = RGB_mode_bit;
+                            RGB_mode_bit = 1;
+                        }
+                        else if(RGB_mode_bit == 1)
+                        {
+                            RGB_mode_bit = RGB_mode_bit_last;
+                        }
+                        else
+                        {
+                            RGB_mode_bit = 1;
+                        }
+
+                  }
+                  else if(RF2G4_Receive_Data[4] == 1 && count> 10)    //A
+                  {
+                      count = 0;
+                      //警灯
+                      if((RGB_mode_bit&0x80)!= 0)
+                      {
+                          RGB_mode_bit_last = RGB_mode_bit;
+                          RGB_mode_bit = 2;
+                      }
+                      else if(RGB_mode_bit == 2)
+                      {
+                          RGB_mode_bit = RGB_mode_bit_last;
+                      }
+                      else
+                      {
+                          RGB_mode_bit = 2;
+                      }
+                  }
+
+                  if(RF2G4_Receive_Data[7] == 1 && count> 10)    //B+
+                  {
+                      count = 0;
+
+                  }
+                  else if(RF2G4_Receive_Data[6] == 1 && count> 10)    //B
+                  {
+                      count = 0;
+
+                  }
               }
-              else if(RF2G4_Receive_Data[6] == 1 && count> 10)    //B
-              {
-                  count = 0;
 
-              }
-
-#endif /*PID_SET*/
 
               //速度控制
               if(RF2G4_Receive_Data[10]!=0 && (RF2G4_Receive_Data[10]<125 || RF2G4_Receive_Data[10]>145))
               {
-                  if(RF2G4_Send_Data[13] != 2)  //不在跟随模式下
+                  if((RF2G4_Send_Data[13]&0x7F) != 2)  //不在跟随模式下
                     pid.Set_Speed = (float)RF2G4_Receive_Data[10]*-0.5f/255+0.25f;
                   pid.brake = 0;//刹车标志
               }
@@ -519,7 +532,7 @@ void receive_2g4_task(void const * argument)
                   pid.brake = 1;//刹车标志
               }
 
-              if(RF2G4_Send_Data[13] != 2)  //不在跟随模式下
+              if((RF2G4_Send_Data[13]&0x7F) != 2)  //不在跟随模式下
               {
                   //大方向控制
                   if(RF2G4_Receive_Data[12]!=0 && (RF2G4_Receive_Data[12]<120 || RF2G4_Receive_Data[12]>145))
@@ -614,8 +627,9 @@ void pid_process_task(void const * argument)
                 pid.Pv = pitch; //角度*10倍
                 Balance_f = balance(pid.Pv); //平衡环
                 Velocity_f = velocity(Encoder_Left, Encoder_Right); //速度环
-                //Turn_f = turn_x(Encoder_Left, Encoder_Right, yaw);    //转向环
                 Turn_f = turn(yaw);    //转向环
+                //Turn_f = turn_x(Encoder_Left, Encoder_Right, yaw);    //转向环
+
 
                 Moto_Left = Balance_f + Velocity_f - Turn_f;    //合成输出
                 Moto_Right = Balance_f + Velocity_f + Turn_f;    //合成输出
@@ -627,6 +641,7 @@ void pid_process_task(void const * argument)
             }else
             {
                 Moto_Left = Moto_Right = 0;    //失能电机
+                Xianfu_Pwm(NULL, NULL); //限幅滤波清零
                 pid.EK_speed = pid.SEK_speed = 0;
                 pid.Angle_turn = yaw;   //停止时取得默认朝向
                 sprintf((char *)TxBuffer2,"A%dB%d\r\n", Moto_Left, Moto_Right);
@@ -681,6 +696,18 @@ void receive_JY61_task(void const * argument)
                       gyrox = (float)stcGyro.w[0]/32768*2000;
                       gyroy = (float)stcGyro.w[1]/32768*2000;
                       gyroz = (float)stcGyro.w[2]/32768*2000;
+
+                    //角速度限幅滤波
+                    if(gyroy > 200 )
+                        gyroy = 0;
+                    else if(gyroy < -200 )
+                        gyroy = 0;
+
+                    if(gyroz > 200 )
+                        gyroz = 0;
+                    else if(gyroz < -200 )
+                        gyroz = 0;
+                    
                       //陀螺仪数据
                       //RTT_printf(5,":%.3f :%.3f :%.3f\r\n",gyrox,gyroy,gyroz);
                   }
@@ -740,6 +767,8 @@ void receive_Encoder_task(void const * argument)
   /* USER CODE BEGIN receive_Encoder_task */
   /* Infinite loop */
   uint8_t sum = 0;
+    float Encoder_Left_new = 0;
+    float Encoder_Right_new = 0;
   for(;;)
   {
       if(__HAL_UART_GET_FLAG (&huart2, UART_FLAG_IDLE) != RESET)    //串口空闲标志
@@ -753,18 +782,40 @@ void receive_Encoder_task(void const * argument)
               {
                   if(RxBuffer2[i] == 'L')
                   {
-                      Encoder_Left = atof((const char *)&RxBuffer2[i+1]);
+                      Encoder_Left_new = atof((const char *)&RxBuffer2[i+1]);
                       foc_ready = 1;
+
+                    //限幅滤波
+                    if((Encoder_Left_new - Encoder_Left > 5) || (Encoder_Left - Encoder_Left_new > 5))
+                    {
+                        Encoder_Left = Encoder_Left;
+                    }
+                    else
+                    {
+                        Encoder_Left = Encoder_Left_new;
+                    }
                   }
                   if(RxBuffer2[i] == 'R')
                   {
-                      Encoder_Right = atof((const char *)&RxBuffer2[i+1]);
+                      Encoder_Right_new = atof((const char *)&RxBuffer2[i+1]);
                       foc_ready = 1;
+
+                    //限幅滤波
+                    if((Encoder_Right_new - Encoder_Right > 5) || (Encoder_Right - Encoder_Right_new > 5))
+                    {
+                        Encoder_Right = Encoder_Right;
+                    }
+                    else
+                    {
+                        Encoder_Right = Encoder_Right_new;
+                    }
                   }
-                  if((Encoder_Left>10 || Encoder_Left<-10 || Encoder_Right>10 || Encoder_Right<-10) && RF2G4_Send_Data[0] == 1)
+
+
+                  if((Encoder_Right_new>10 || Encoder_Right_new<-10 || Encoder_Right_new>10 || Encoder_Right_new<-10) && RF2G4_Send_Data[0] == 1)
                   {
                       sum++;
-                      if(sum >= 3)
+                      if(sum > 20)
                       {
                           RF2G4_Send_Data[0] = 0x80;   //超速失能
                           sum = 0;
