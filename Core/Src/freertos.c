@@ -126,7 +126,7 @@ void MX_FREERTOS_Init(void) {
   receive_2g4Handle = osThreadCreate(osThread(receive_2g4), NULL);
 
   /* definition and creation of pid_process */
-  osThreadDef(pid_process, pid_process_task, osPriorityBelowNormal, 0, 128);
+  osThreadDef(pid_process, pid_process_task, osPriorityBelowNormal, 0, 512);
   pid_processHandle = osThreadCreate(osThread(pid_process), NULL);
 
   /* definition and creation of receive_JY61 */
@@ -134,11 +134,11 @@ void MX_FREERTOS_Init(void) {
   receive_JY61Handle = osThreadCreate(osThread(receive_JY61), NULL);
 
   /* definition and creation of receive_Encoder */
-  osThreadDef(receive_Encoder, receive_Encoder_task, osPriorityLow, 0, 128);
+  osThreadDef(receive_Encoder, receive_Encoder_task, osPriorityLow, 0, 256);
   receive_EncoderHandle = osThreadCreate(osThread(receive_Encoder), NULL);
 
   /* definition and creation of receive_vl53l0x */
-  osThreadDef(receive_vl53l0x, receive_vl53l0x_task, osPriorityLow, 0, 128);
+  osThreadDef(receive_vl53l0x, receive_vl53l0x_task, osPriorityLow, 0, 256);
   receive_vl53l0xHandle = osThreadCreate(osThread(receive_vl53l0x), NULL);
 
   /* definition and creation of testTask */
@@ -304,8 +304,8 @@ void receive_2g4_task(void const * argument)
   uint8_t ret = 0;
   uint16_t sum = 0; //接收次数计数
   uint16_t count = 0;   //消抖计数
-  uint16_t i = 0;
-  uint8_t RGB_mode_bit_last = 0;    //上次模式
+//  uint16_t i = 0;
+//  uint8_t RGB_mode_bit_last = 0;    //上次模式
     RF2G4_RX_Mode();	// 接收模式
 
   /* Infinite loop */
@@ -621,7 +621,9 @@ void pid_process_task(void const * argument)
                 Moto_Right = Balance_f + Velocity_f + Turn_f;    //合成输出
                 Xianfu_Pwm(&Moto_Left, &Moto_Right);    //限幅
                 sprintf((char *)TxBuffer2,"A%dB%d\r\n", Moto_Left, Moto_Right);
+                portDISABLE_INTERRUPTS();   //关中断
                 HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);  //输出
+                portENABLE_INTERRUPTS();    //开中断
             }else
             {
                 Moto_Left = Moto_Right = 0;    //失能电机

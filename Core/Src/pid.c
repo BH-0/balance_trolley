@@ -199,12 +199,12 @@ void Xianfu_Pwm(int *Moto_Left, int *Moto_Right)
         *Moto_Right = Amplitude;
 
     //异常转速变化
-    if((Moto_Left_last-*Moto_Left)>50 || (Moto_Left_last-*Moto_Left)<-50)
+    if((Moto_Left_last-*Moto_Left)>40 || (Moto_Left_last-*Moto_Left)<-40)
         *Moto_Left = Moto_Left_last;
     else
         Moto_Left_last = *Moto_Left;
 
-    if((Moto_Right_last-*Moto_Right)>50 || (Moto_Right_last-*Moto_Right)<-50)
+    if((Moto_Right_last-*Moto_Right)>40 || (Moto_Right_last-*Moto_Right)<-40)
         *Moto_Right = Moto_Right_last;
     else
         Moto_Right_last = *Moto_Right;
