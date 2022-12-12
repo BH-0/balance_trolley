@@ -30,6 +30,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "Adafruit_NeoPixel.h"
+#include "w25qxx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,6 +59,8 @@ osThreadId receive_JY61Handle;
 osThreadId receive_EncoderHandle;
 osThreadId receive_vl53l0xHandle;
 osThreadId testTaskHandle;
+osThreadId Flash_memoryHandle;
+osMutexId SPI1_MutexHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -71,6 +74,7 @@ void receive_JY61_task(void const * argument);
 void receive_Encoder_task(void const * argument);
 void receive_vl53l0x_task(void const * argument);
 void test_Task(void const * argument);
+void Flash_memory_task(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -99,6 +103,10 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
+  /* Create the mutex(es) */
+  /* definition and creation of SPI1_Mutex */
+  osMutexDef(SPI1_Mutex);
+  SPI1_MutexHandle = osMutexCreate(osMutex(SPI1_Mutex));
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -144,6 +152,10 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of testTask */
   osThreadDef(testTask, test_Task, osPriorityIdle, 0, 128);
   testTaskHandle = osThreadCreate(osThread(testTask), NULL);
+
+  /* definition and creation of Flash_memory */
+  osThreadDef(Flash_memory, Flash_memory_task, osPriorityIdle, 0, 256);
+  Flash_memoryHandle = osThreadCreate(osThread(Flash_memory), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -312,6 +324,7 @@ void receive_2g4_task(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+    osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
       ret = RF2G4_Rx_Packet((u8 *)RF2G4_Receive_Data, 14);  //第一位是0或1就是按键，其他则是功能码
       if(sum >= 3)  //返回频率 每3次接收返回1次
       {
@@ -596,6 +609,7 @@ void receive_2g4_task(void const * argument)
       }
       count++;
       RF2G4_RX_Mode_X();	// 接收模式
+      osMutexRelease(SPI1_MutexHandle);//释放互斥量
       osDelay(10);
   }
   /* USER CODE END receive_2g4_task */
@@ -612,6 +626,7 @@ void pid_process_task(void const * argument)
 {
   /* USER CODE BEGIN pid_process_task */
   /* Infinite loop */
+    uint8_t cmd = 0;
     int Balance_f = 0, Velocity_f = 0, Turn_f = 0;
     int Moto_Left, Moto_Right;  //最终输出电机电流百分比 最大100，最小-100
     PID_Init();	//初始化pid值
@@ -638,14 +653,23 @@ void pid_process_task(void const * argument)
                 portDISABLE_INTERRUPTS();   //关中断
                 HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);  //输出
                 portENABLE_INTERRUPTS();    //开中断
+                cmd = 0;
             }else
             {
                 Moto_Left = Moto_Right = 0;    //失能电机
                 Xianfu_Pwm(NULL, NULL); //限幅滤波清零
                 pid.EK_speed = pid.SEK_speed = 0;
                 pid.Angle_turn = yaw;   //停止时取得默认朝向
-                sprintf((char *)TxBuffer2,"A%dB%d\r\n", Moto_Left, Moto_Right);
-                HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
+                if(cmd == 0)
+                {
+                    cmd = 1;
+                    sprintf((char *)TxBuffer2,"A%dB%d\r\n", Moto_Left, Moto_Right);
+                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
+                }
             }
         }
     osDelay(3);    //10效果较好
@@ -778,6 +802,8 @@ void receive_Encoder_task(void const * argument)
           RxLen2 = UART_RX_BUF_SIZE - huart2.hdmarx->Instance->NDTR;  //获取DMA接收长度
           if(RxLen2 > 0)  //判断接收非空
           {
+            if(/*RF2G4_Send_Data[0] == */1) //小车使能时才接收/////////////////////////////////////////////
+            {
               for(int i = 0; i <RxLen2; i++)
               {
                   if(RxBuffer2[i] == 'L')
@@ -827,7 +853,7 @@ void receive_Encoder_task(void const * argument)
                   }
               }
               //RTT_printf(4,"%f,%f\r\n",Encoder_Left, Encoder_Right);  //打印编码器
-
+            }
           }
           StartUartRxDMA(&huart2);  //开启DMA
 
@@ -885,6 +911,48 @@ void test_Task(void const * argument)
       osDelay(100);
   }
   /* USER CODE END test_Task */
+}
+
+/* USER CODE BEGIN Header_Flash_memory_task */
+/**
+* @brief Function implementing the Flash_memory thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Flash_memory_task */
+void Flash_memory_task(void const * argument)
+{
+  /* USER CODE BEGIN Flash_memory_task */
+  	uint8_t TEXT_Buffer[] = "Hello world!";
+    uint8_t datatemp[128] = {0};
+	uint32_t FLASH_SIZE = 0;
+    osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
+    W25QXX_Init();  //初始化
+
+    if(W25QXX_ReadID() == W25Q64)
+    {
+        FLASH_SIZE = 64/8*1024*1024;
+    }
+    else
+    {
+        RTT_printf(0, "SPI FLASH error:%#x\r\n",W25QXX_ReadID());
+        for(;;);
+    }
+
+    osMutexRelease(SPI1_MutexHandle); //释放互斥量  
+  /* Infinite loop */
+  for(;;)
+  {
+    //osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
+
+    //RTT_printf(1, "SPI FLASH ready:%#x\r\n",W25QXX_ReadID());
+        // W25QXX_Write(TEXT_Buffer,0,sizeof(TEXT_Buffer));
+        // W25QXX_Read(datatemp,0,sizeof(TEXT_Buffer));
+        // RTT_printf(1, "Read FLASH:%s\r\n",datatemp);
+    //osMutexRelease(SPI1_MutexHandle); //释放互斥量
+    osDelay(100);
+  }
+  /* USER CODE END Flash_memory_task */
 }
 
 /* Private application code --------------------------------------------------*/

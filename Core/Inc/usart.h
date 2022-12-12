@@ -39,7 +39,7 @@ extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN Private defines */
-#define UART_RX_BUF_SIZE 1024  //缓存数据长度
+#define UART_RX_BUF_SIZE 1030  //缓存数据长度
 #ifndef TRUE
 #define TRUE  (1)
 #endif
