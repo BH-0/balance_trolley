@@ -58,14 +58,14 @@ extern volatile float pitch, roll, yaw;			 //欧拉角
 extern float Encoder_Left, Encoder_Right; //左右编码器的转速，单位：弧度/100毫秒
 extern uint8_t foc_ready; //foc就绪标志
 
-extern unsigned char RxBuffer[UART_RX_BUF_SIZE];
-extern unsigned char TxBuffer[UART_RX_BUF_SIZE];
+extern volatile unsigned char RxBuffer[UART_RX_BUF_SIZE];
+extern volatile unsigned char TxBuffer[UART_RX_BUF_SIZE];
 extern char sendCompleteSign;  //发送完成标志
 extern unsigned char TxLen; //发送长度
 extern unsigned int RxLen;//接收每段数据的字节长度
 
-extern unsigned char RxBuffer2[UART_RX_BUF_SIZE];
-extern unsigned char TxBuffer2[UART_RX_BUF_SIZE];
+extern volatile unsigned char RxBuffer2[UART_RX_BUF_SIZE];
+extern volatile unsigned char TxBuffer2[UART_RX_BUF_SIZE];
 extern char sendCompleteSign2;  //发送完成标志
 extern unsigned char TxLen2; //发送长度
 extern unsigned int RxLen2;//接收每段数据的字节长度

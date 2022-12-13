@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include "Adafruit_NeoPixel.h"
 #include "w25qxx.h"
+#include "ymodem.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -651,7 +652,7 @@ void pid_process_task(void const * argument)
                 Xianfu_Pwm(&Moto_Left, &Moto_Right);    //限幅
                 sprintf((char *)TxBuffer2,"A%dB%d\r\n", Moto_Left, Moto_Right);
                 portDISABLE_INTERRUPTS();   //关中断
-                HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);  //输出
+                HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);  //输出
                 portENABLE_INTERRUPTS();    //开中断
                 cmd = 0;
             }else
@@ -660,15 +661,15 @@ void pid_process_task(void const * argument)
                 Xianfu_Pwm(NULL, NULL); //限幅滤波清零
                 pid.EK_speed = pid.SEK_speed = 0;
                 pid.Angle_turn = yaw;   //停止时取得默认朝向
-                if(cmd == 0)
+                if(cmd == 0 )
                 {
                     cmd = 1;
                     sprintf((char *)TxBuffer2,"A%dB%d\r\n", Moto_Left, Moto_Right);
-                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
-                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
-                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
-                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
-                    HAL_UART_Transmit(&huart2, TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
                 }
             }
         }
@@ -704,7 +705,7 @@ void receive_JY61_task(void const * argument)
                   if(RxBuffer[i] == 0x55 && RxBuffer[i+1] == 0x51)
                   {
                       //陀螺仪加速度数据处理
-                      memcpy(&stcAcc,&RxBuffer[i+2],8);
+                      memcpy(&stcAcc,(uint8_t *)&RxBuffer[i+2],8);
 
                       aacx = (float)stcAcc.a[0]/32768*16;
                       aacy = (float)stcAcc.a[1]/32768*16;
@@ -715,7 +716,7 @@ void receive_JY61_task(void const * argument)
                   if(RxBuffer[i] == 0x55 && RxBuffer[i+1] == 0x52)
                   {
                       //陀螺仪角速度数据处理
-                      memcpy(&stcGyro,&RxBuffer[i+2],8);
+                      memcpy(&stcGyro,(uint8_t *)&RxBuffer[i+2],8);
 
                       gyrox = (float)stcGyro.w[0]/32768*2000;
                       gyroy = (float)stcGyro.w[1]/32768*2000;
@@ -738,7 +739,7 @@ void receive_JY61_task(void const * argument)
                   if(RxBuffer[i] == 0x55 && RxBuffer[i+1] == 0x53 && (RxLen-i)>= 11)
                   {
                       //欧拉角数据处理
-                      memcpy(&stcAngle,&RxBuffer[i+2],8);
+                      memcpy(&stcAngle,(uint8_t *)&RxBuffer[i+2],8);
 
                       RF2G4_Send_Data[1] = (stcAngle.Angle[1]>>8)&0xFF;
                       RF2G4_Send_Data[2] = stcAngle.Angle[1]&0xFF;
@@ -795,6 +796,8 @@ void receive_Encoder_task(void const * argument)
     float Encoder_Right_new = 0;
   for(;;)
   {
+    if (RF2G4_Send_Data[0] == 1 || foc_ready == 0) // 小车失能时才接收/////////////////////////////////////////////
+    {
       if(__HAL_UART_GET_FLAG (&huart2, UART_FLAG_IDLE) != RESET)    //串口空闲标志
       {
           __HAL_UART_CLEAR_IDLEFLAG(&huart2);       //清除标志
@@ -802,8 +805,7 @@ void receive_Encoder_task(void const * argument)
           RxLen2 = UART_RX_BUF_SIZE - huart2.hdmarx->Instance->NDTR;  //获取DMA接收长度
           if(RxLen2 > 0)  //判断接收非空
           {
-            if(/*RF2G4_Send_Data[0] == */1) //小车使能时才接收/////////////////////////////////////////////
-            {
+
               for(int i = 0; i <RxLen2; i++)
               {
                   if(RxBuffer2[i] == 'L')
@@ -851,13 +853,13 @@ void receive_Encoder_task(void const * argument)
                   {
                       sum = 0;
                   }
-              }
               //RTT_printf(4,"%f,%f\r\n",Encoder_Left, Encoder_Right);  //打印编码器
             }
           }
           StartUartRxDMA(&huart2);  //开启DMA
 
       }
+    }
     osDelay(10);
   }
   /* USER CODE END receive_Encoder_task */
@@ -912,7 +914,7 @@ void test_Task(void const * argument)
   }
   /* USER CODE END test_Task */
 }
-
+uint8_t datatemp_buf[1024] = { 0 };
 /* USER CODE BEGIN Header_Flash_memory_task */
 /**
 * @brief Function implementing the Flash_memory thread.
@@ -923,9 +925,8 @@ void test_Task(void const * argument)
 void Flash_memory_task(void const * argument)
 {
   /* USER CODE BEGIN Flash_memory_task */
-  	uint8_t TEXT_Buffer[] = "Hello world!";
-    uint8_t datatemp[128] = {0};
 	uint32_t FLASH_SIZE = 0;
+    uint32_t sum = 0;
     osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
     W25QXX_Init();  //初始化
 
@@ -943,14 +944,39 @@ void Flash_memory_task(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    //osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
+        if (RF2G4_Send_Data[0] != 1 && foc_ready == 1) // 小车失能时才接收/////////////////////////////////////////////
+        {
+              if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_IDLE) != RESET) // 串口空闲标志
+              {
+                __HAL_UART_CLEAR_IDLEFLAG(&huart2);                        // 清除标志
+                HAL_UART_DMAStop(&huart2);                                 // 停止DMA接收
+                RxLen2 = UART_RX_BUF_SIZE - huart2.hdmarx->Instance->NDTR; // 获取DMA接收长度
+                if (RxLen2 > 0)                                            // 判断接收非空
+                {
+                    ymodem_download();// ymodem //------------------------------------------------------------------------------------------
+                }
+                StartUartRxDMA(&huart2); // 开启DMA
+              }
 
-    //RTT_printf(1, "SPI FLASH ready:%#x\r\n",W25QXX_ReadID());
-        // W25QXX_Write(TEXT_Buffer,0,sizeof(TEXT_Buffer));
-        // W25QXX_Read(datatemp,0,sizeof(TEXT_Buffer));
-        // RTT_printf(1, "Read FLASH:%s\r\n",datatemp);
-    //osMutexRelease(SPI1_MutexHandle); //释放互斥量
-    osDelay(100);
+
+             if(ymodem_get_state()==TO_START && sum>=100)
+            {
+                ymodem_send_cmd(CCC);
+                sum = 0;
+            }
+           osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
+           W25QXX_Read(datatemp_buf,0xD510,1024);
+           W25QXX_Read(datatemp_buf, 64/8*1024*1024 - 4,4);
+           osMutexRelease(SPI1_MutexHandle); //释放互斥量
+        }
+
+    if(sum>=100)    //一秒
+    {
+        sum = 100;
+    }
+    else
+        sum++;
+    osDelay(10);
   }
   /* USER CODE END Flash_memory_task */
 }

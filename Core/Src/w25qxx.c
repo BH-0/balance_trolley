@@ -301,6 +301,27 @@ void W25QXX_Erase_Sector(u32 Dst_Addr)
 	W25QXX_CS=1;                            //取消片选     	      
     W25QXX_Wait_Busy();   				    //等待擦除完成
 }  
+//擦除一个块64kB
+//Dst_Addr:块地址 根据实际容量设置
+void W25QXX_Erase_Block(u32 Dst_Addr)   
+{  
+	//监视falsh擦除情况,测试用   
+ 	//printf("fe:%x\r\n",Dst_Addr);	  
+ 	Dst_Addr*=4096;
+    W25QXX_Write_Enable();                  //SET WEL 	 
+    W25QXX_Wait_Busy();   
+  	W25QXX_CS=0;                            //使能器件   
+    SPI1_ReadWriteByte(W25X_BlockErase);   //发送块擦除指令 
+    if(W25QXX_TYPE==W25Q256)                //如果是W25Q256的话地址为4字节的，要发送最高8位
+    {
+        SPI1_ReadWriteByte((u8)((Dst_Addr)>>24)); 
+    }
+    SPI1_ReadWriteByte((u8)((Dst_Addr)>>16));  //发送24bit地址    
+    SPI1_ReadWriteByte((u8)((Dst_Addr)>>8));   
+    SPI1_ReadWriteByte((u8)Dst_Addr);  
+	W25QXX_CS=1;                            //取消片选     	      
+    W25QXX_Wait_Busy();   				    //等待擦除完成
+}  
 //等待空闲
 void W25QXX_Wait_Busy(void)   
 {   

@@ -64,6 +64,7 @@ void W25QXX_Read(u8* pBuffer,u32 ReadAddr,u16 NumByteToRead);   //读取flash
 void W25QXX_Write(u8* pBuffer,u32 WriteAddr,u16 NumByteToWrite);//写入flash
 void W25QXX_Erase_Chip(void);    	  	//整片擦除
 void W25QXX_Erase_Sector(u32 Dst_Addr);	//扇区擦除
+void W25QXX_Erase_Block(u32 Dst_Addr);  //块擦除
 void W25QXX_Wait_Busy(void);           	//等待空闲
 void W25QXX_PowerDown(void);        	//进入掉电模式
 void W25QXX_WAKEUP(void);				//唤醒

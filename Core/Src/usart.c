@@ -33,14 +33,14 @@ volatile float pitch = 0, roll = 0, yaw = 0;			 //欧拉角
 float Encoder_Left = 0, Encoder_Right = 0; //左右编码器的转速，单位：弧度/100毫秒
 uint8_t foc_ready = 0; //foc就绪标志
 
-unsigned char RxBuffer[UART_RX_BUF_SIZE] = {0};
-unsigned char TxBuffer[UART_RX_BUF_SIZE] = {0};
+volatile unsigned char RxBuffer[UART_RX_BUF_SIZE] = {0};
+volatile unsigned char TxBuffer[UART_RX_BUF_SIZE] = {0};
 char sendCompleteSign = TRUE;  //发送完成标志
 unsigned char TxLen = 0; //发送长度
 unsigned int RxLen = 0;//接收每段数据的字节长度
 
-unsigned char RxBuffer2[UART_RX_BUF_SIZE] = {0};
-unsigned char TxBuffer2[UART_RX_BUF_SIZE] = {0};
+volatile unsigned char RxBuffer2[UART_RX_BUF_SIZE] = {0};
+volatile unsigned char TxBuffer2[UART_RX_BUF_SIZE] = {0};
 char sendCompleteSign2 = TRUE;  //发送完成标志
 unsigned char TxLen2 = 0; //发送长度
 unsigned int RxLen2 = 0;//接收每段数据的字节长度
