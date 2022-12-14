@@ -8,6 +8,10 @@ setup()中可取消注释设置电压限制与电流限制
 */
 
 #include <SimpleFOC.h>
+# include <stdlib.h>
+# include <string.h>
+//标志位
+uint8_t StartStop_bit = 0;
 
 //定时器
 hw_timer_t *timer = NULL;
@@ -163,70 +167,109 @@ void setup() {
 
 
 void loop() {
-  // iterative setting FOC phase voltage
-  motor1.loopFOC();
-  motor2.loopFOC();
+  if(StartStop_bit == 1)  //电机使能
+  {
+    // iterative setting FOC phase voltage
+    motor1.loopFOC();
+    motor2.loopFOC();
 
-  // iterative function setting the outter loop target
-  motor1.move();
-  motor2.move();
+    // iterative function setting the outter loop target
+    motor1.move();
+    motor2.move();
 
-  // user communication
-  command.run();
-  motor1.monitor();
-  motor2.monitor();
+    // user communication
+    command.run();
+    motor1.monitor();
+    motor2.monitor();
+  }
 
   //读取串口2数据
   //命令格式 "A10 B-20\r\n"
   while(Serial2.available())
   {
     char inChar = (char)Serial2.read();
-    char inBuff[5] = {0};
+    char inBuff[16] = {0};
     int targetNum = 0;
     float targetBuf = 0.0;
     char i = 0;
-    if(inChar == 'A')
+
+    if(StartStop_bit == 1)  //电机使能
     {
-      i = 0;
-      memset(inBuff, 0, 5);
-      Serial2.print(F("A:"));
-      while(Serial2.available())
+      if(inChar == 'A')
       {
-        inChar = Serial2.read();
-        if(((inChar >= '0' && inChar <= '9') || inChar == '-') && i<4)
-        {  
-          //读取数值
-          //Serial2.print(inChar);
-          inBuff[i] = inChar;
-          i++;
+        i = 0;
+        memset(inBuff, 0, 16);
+        Serial2.print(F("A:"));
+        while(Serial2.available())
+        {
+          inChar = Serial2.read();
+          if(((inChar >= '0' && inChar <= '9') || inChar == '-') && i<4)
+          {  
+            //读取数值
+            //Serial2.print(inChar);
+            inBuff[i] = inChar;
+            i++;
+          }
+          else
+            break;
         }
+        if(inBuff[0] == '-')  //正负判断
+          targetNum = atoi(inBuff+1)*-1;
         else
-          break;
+          targetNum = atoi(inBuff);
+        if(targetNum >= -100 && targetNum <= 100)
+        {
+          targetBuf = (float)targetNum*2/100;  //电流计算
+          char buf[8] = {0};
+          sprintf(buf, "%.2f", targetBuf);
+          Serial2.println(buf);  //打印浮点数
+          motor1.target = targetBuf;
+        }
+        //Serial2.print(F("\r\n"));
       }
-      if(inBuff[0] == '-')  //正负判断
-        targetNum = atoi(inBuff+1)*-1;
-      else
-        targetNum = atoi(inBuff);
-      if(targetNum >= -100 && targetNum <= 100)
+
+      if(inChar == 'B')
       {
-        targetBuf = (float)targetNum*2/100;  //电流计算
-        char buf[8] = {0};
-        sprintf(buf, "%.2f", targetBuf);
-        Serial2.println(buf);  //打印浮点数
-        motor1.target = targetBuf;
+        i = 0;
+        memset(inBuff, 0, 16);
+        Serial2.print(F("B:"));
+        while(Serial2.available())
+        {
+          inChar = Serial2.read();
+          if(((inChar >= '0' && inChar <= '9') || inChar == '-') && i<4)
+          {  
+            //读取数值
+            //Serial2.print(inChar);
+            inBuff[i] = inChar;
+            i++;
+          }
+          else
+            break;
+        }
+        if(inBuff[0] == '-')  //正负判断
+          targetNum = atoi(inBuff+1)*-1;
+        else
+          targetNum = atoi(inBuff);
+        if(targetNum >= -100 && targetNum <= 100)
+        {
+          targetBuf = (float)targetNum*2/100;  //电流计算
+          char buf[8] = {0};
+          sprintf(buf, "%.2f", targetBuf);
+          Serial2.println(buf);  //打印浮点数
+          motor2.target = targetBuf * -1;
+        }
+        //Serial2.print(F("\r\n"));
       }
-      //Serial2.print(F("\r\n"));
     }
 
-    if(inChar == 'B')
+    if(inChar == '#')//指令接收
     {
       i = 0;
-      memset(inBuff, 0, 5);
-      Serial2.print(F("B:"));
+      memset(inBuff, 0, 16);
       while(Serial2.available())
       {
         inChar = Serial2.read();
-        if(((inChar >= '0' && inChar <= '9') || inChar == '-') && i<4)
+        if((inChar != '#') && i<15)
         {  
           //读取数值
           //Serial2.print(inChar);
@@ -236,23 +279,20 @@ void loop() {
         else
           break;
       }
-      if(inBuff[0] == '-')  //正负判断
-        targetNum = atoi(inBuff+1)*-1;
-      else
-        targetNum = atoi(inBuff);
-      if(targetNum >= -100 && targetNum <= 100)
+      //指令处理
+      if(strcmp(inBuff,"START") == 0)
       {
-        targetBuf = (float)targetNum*2/100;  //电流计算
-        char buf[8] = {0};
-        sprintf(buf, "%.2f", targetBuf);
-        Serial2.println(buf);  //打印浮点数
-        motor2.target = targetBuf * -1;
+        StartStop_bit = 1;
       }
-      //Serial2.print(F("\r\n"));
+      else if(strcmp(inBuff,"STOP") == 0)
+      {
+        StartStop_bit = 0;
+      }
     }
+
   }
   
-  if(flag == 1) //每100ms回传一次数据
+  if(flag == 1 && StartStop_bit == 1) //每100ms回传一次数据
   {
       flag = 0;
       float buf = 0.0f;

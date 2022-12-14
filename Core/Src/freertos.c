@@ -367,7 +367,10 @@ void receive_2g4_task(void const * argument)
               {
                   count = 0;
                   if(RF2G4_Send_Data[0] != 1)
-                      RF2G4_Send_Data[0] = 1;
+                  {
+                    HAL_UART_Transmit(&huart2, "#START#", strlen("#START#"), 10); //·¢ËÍ¿ªÊ¼ÃüÁî
+                    RF2G4_Send_Data[0] = 1;
+                  }
                   else if(RF2G4_Send_Data[0] != 0)
                       RF2G4_Send_Data[0] = 0;
               }
@@ -668,8 +671,7 @@ void pid_process_task(void const * argument)
                     HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
                     HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
                     HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
-                    HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
-                    HAL_UART_Transmit(&huart2, (uint8_t *)TxBuffer2, strlen((char *) TxBuffer2), 10);
+                    HAL_UART_Transmit(&huart2, "#STOP#", strlen("#STOP#"), 10); //·¢ËÍÍ£Ö¹ÃüÁî
                 }
             }
         }
