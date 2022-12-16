@@ -52,6 +52,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 uint16_t Tof_Value = 0; //距离
+uint8_t upgraded_bit = 0; //升级标志
 /* USER CODE END Variables */
 osThreadId LED_RGBHandle;
 osThreadId receive_2g4Handle;
@@ -155,7 +156,7 @@ void MX_FREERTOS_Init(void) {
   testTaskHandle = osThreadCreate(osThread(testTask), NULL);
 
   /* definition and creation of Flash_memory */
-  osThreadDef(Flash_memory, Flash_memory_task, osPriorityIdle, 0, 256);
+  osThreadDef(Flash_memory, Flash_memory_task, osPriorityBelowNormal, 0, 512);
   Flash_memoryHandle = osThreadCreate(osThread(Flash_memory), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -798,7 +799,7 @@ void receive_Encoder_task(void const * argument)
     float Encoder_Right_new = 0;
   for(;;)
   {
-    if (RF2G4_Send_Data[0] == 1 || foc_ready == 0) // 小车失能时才接收/////////////////////////////////////////////
+    if ((RF2G4_Send_Data[0] == 1 || foc_ready == 0) && upgraded_bit == 0) // 小车失能时才接收/////////////////////////////////////////////
     {
       if(__HAL_UART_GET_FLAG (&huart2, UART_FLAG_IDLE) != RESET)    //串口空闲标志
       {
@@ -916,19 +917,21 @@ void test_Task(void const * argument)
   }
   /* USER CODE END test_Task */
 }
-uint8_t datatemp_buf[1024] = { 0 };
+
 /* USER CODE BEGIN Header_Flash_memory_task */
 /**
 * @brief Function implementing the Flash_memory thread.
 * @param argument: Not used
 * @retval None
 */
+    uint8_t datatemp_buf[2048] = {0};
 /* USER CODE END Header_Flash_memory_task */
 void Flash_memory_task(void const * argument)
 {
   /* USER CODE BEGIN Flash_memory_task */
 	uint32_t FLASH_SIZE = 0;
     uint32_t sum = 0;
+    
     osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
     W25QXX_Init();  //初始化
 
@@ -941,12 +944,13 @@ void Flash_memory_task(void const * argument)
         RTT_printf(0, "SPI FLASH error:%#x\r\n",W25QXX_ReadID());
         for(;;);
     }
-
+       W25QXX_Read(datatemp_buf,0xD510,2048);
+       W25QXX_Read(datatemp_buf, 64/8*1024*1024 - 8,8);
     osMutexRelease(SPI1_MutexHandle); //释放互斥量  
   /* Infinite loop */
   for(;;)
   {
-        if (RF2G4_Send_Data[0] != 1 && foc_ready == 1) // 小车失能时才接收/////////////////////////////////////////////
+        if ((RF2G4_Send_Data[0] != 1 && foc_ready == 1 && PAin(0) == 0) || upgraded_bit == 1) // 小车失能时才接收/////////////////////////////////////////////
         {
               if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_IDLE) != RESET) // 串口空闲标志
               {
@@ -955,7 +959,38 @@ void Flash_memory_task(void const * argument)
                 RxLen2 = UART_RX_BUF_SIZE - huart2.hdmarx->Instance->NDTR; // 获取DMA接收长度
                 if (RxLen2 > 0)                                            // 判断接收非空
                 {
-                    ymodem_download();// ymodem //------------------------------------------------------------------------------------------
+                    for(int i = 0; i <RxLen2; i++)
+                    {
+                        //接收指令
+                        if(RxBuffer2[i] == '#')
+                        {
+                            if(RxBuffer2[i+1] == 'U' && RxBuffer2[i+2] == 'P' && (RxBuffer2[i+3]>='0' && RxBuffer2[i+3]<='9'))
+                            {
+                                switch(RxBuffer2[i+3])
+                                {
+                                    case '1': //连接wifi
+                                        upgraded_bit = 1;
+                                        foc_ready = 0;
+                                        RF2G4_Send_Data[12] = 1;
+                                    break;
+                                    case '2': //连接TCP服务器
+                                        RF2G4_Send_Data[12] = 2;
+                                    break;
+                                    case '3'://开始升级
+                                        RF2G4_Send_Data[12] = 3;
+                                        vTaskSuspend(pid_processHandle);//挂起多余任务
+                                        vTaskSuspend(receive_JY61Handle);
+                                        vTaskSuspend(receive_EncoderHandle);
+                                        vTaskSuspend(receive_vl53l0xHandle);
+                                        HAL_NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn); //使能定时器中断
+                                        ymodem_download();// ymodem //------------------------------------------------------------------------------------------
+                                        HAL_UART_Transmit(&huart2, "#RST#", strlen("#RST#"), 10); //发送复位命令
+                                        NVIC_SystemReset();//复位
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
                 StartUartRxDMA(&huart2); // 开启DMA
               }
@@ -966,10 +1001,10 @@ void Flash_memory_task(void const * argument)
                 ymodem_send_cmd(CCC);
                 sum = 0;
             }
-           osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
-           W25QXX_Read(datatemp_buf,0xD510,1024);
-           W25QXX_Read(datatemp_buf, 64/8*1024*1024 - 4,4);
-           osMutexRelease(SPI1_MutexHandle); //释放互斥量
+        //    osMutexWait(SPI1_MutexHandle, portMAX_DELAY);   //等待互斥量
+        //    W25QXX_Read(datatemp_buf,0xD510,1024);
+        //    W25QXX_Read(datatemp_buf, 64/8*1024*1024 - 4,4);
+        //    osMutexRelease(SPI1_MutexHandle); //释放互斥量
         }
 
     if(sum>=100)    //一秒

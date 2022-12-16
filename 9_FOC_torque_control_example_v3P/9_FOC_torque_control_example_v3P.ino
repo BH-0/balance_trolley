@@ -8,10 +8,15 @@ setup()中可取消注释设置电压限制与电流限制
 */
 
 #include <SimpleFOC.h>
+#include <WiFi.h>
 # include <stdlib.h>
 # include <string.h>
+
+const char* id="BH_TX";              //常量定义
+const char* psw="qoqoqo1003155077";
+
 //标志位
-uint8_t StartStop_bit = 0;
+uint8_t StartStop_bit = 0;  //小车使能
 
 //定时器
 hw_timer_t *timer = NULL;
@@ -42,6 +47,19 @@ InlineCurrentSense current_sense2 = InlineCurrentSense(0.01, 50.0, 35, 34);
 Commander command = Commander(Serial);
 void doMotor1(char* cmd){ command.motor(&motor1, cmd); }
 void doMotor2(char* cmd){ command.motor(&motor2, cmd); }
+
+IPAddress connect(){             //连接到指定wifi
+  WiFi.begin(id,psw);
+   while (WiFi.status()!= WL_CONNECTED) {
+    delay(1000);
+    Serial.println("正在尝试连接该wifi...");
+  }
+  Serial.println("连接成功！");
+  Serial.println("IP address set: "); 
+  IPAddress localip = WiFi.localIP();
+  Serial.println(localip); //print LAN IP
+  return localip;
+}
 
 void setup() {
   // 编码器设置
@@ -121,8 +139,9 @@ void setup() {
 
   // monitor接口设置
 
-  Serial.begin(921600);
+  Serial.begin(115200);
   Serial2.begin(921600);
+
   // comment out if not needed
   motor1.useMonitoring(Serial);
   motor2.useMonitoring(Serial);
@@ -158,15 +177,23 @@ void setup() {
   timerAlarmWrite(timer, 100000, true);//设置定时器，定时0.1s 单位us
   timerAlarmEnable(timer);  //开始计数
 
+  //创建wifi连接
+  //connect();
+  
+  //初始化完成
   Serial.println(F("Double motor sketch ready."));
   Serial2.println(F("OK."));  //不知道为啥第一次发送是乱码
   Serial2.println(F("OK."));
   Serial2.println(F("OK."));
+  Serial2.println(F("L0R0"));
+  Serial2.println(F("L0R0"));
+  Serial2.println(F("L0R0"));
   _delay(1000);
 }
 
 
 void loop() {
+  static uint8_t sum = 0;
   if(StartStop_bit == 1)  //电机使能
   {
     // iterative setting FOC phase voltage
@@ -283,13 +310,39 @@ void loop() {
       if(strcmp(inBuff,"START") == 0)
       {
         StartStop_bit = 1;
+        //WiFi.mode(WIFI_OFF);          //断开当前wifi网络的连接
       }
       else if(strcmp(inBuff,"STOP") == 0)
       {
         StartStop_bit = 0;
+        Serial2.println(F("L0R0"));
+        Serial2.println(F("L0R0"));
+        Serial2.println(F("L0R0"));
+        //创建wifi连接
+        //connect();
       }
     }
 
+    if(inChar == 'C')
+    {
+      StartStop_bit = 0;
+      I2Ctwo.end();
+      I2Cone.end();
+      motor1.disable(); //失能电机
+      motor2.disable();
+      if(sum>=2)
+      {
+        while(Serial2.available())//清空多余数据再进入升级
+        {
+          inChar = Serial2.read();
+        }
+        update(); //进入升级阶段，升级完成后直接重启
+      }
+      else
+        sum++;
+    }
+    else
+      sum = 0;
   }
   
   if(flag == 1 && StartStop_bit == 1) //每100ms回传一次数据
@@ -314,4 +367,87 @@ void loop() {
 static void IRAM_ATTR Timer0_CallBack(void)
 {
   flag = 1;
+}
+
+static void update(void)
+{
+  WiFiClient client;
+  uint8_t inChar = 0;
+  uint8_t cmdBit = 0;
+
+  Serial2.println(F("#UP1"));  //返回升级标志
+  //创建wifi连接
+  const char* ipBufs = connect().toString().c_str();
+  uint8_t ipBuf1,ipBuf2,ipBuf3;
+  char ipBuf[16] = {0};
+  sscanf(ipBufs,"%u.%u.%u.",&ipBuf1,&ipBuf2,&ipBuf3);
+  sprintf(ipBuf,"%u.%u.%u.1",ipBuf1,ipBuf2,ipBuf3);//默认192.168.xxx.1为TCP客户端地址
+  Serial.println("IP server:");
+  Serial.println(ipBuf);
+  Serial2.println(F("#UP2"));  //返回升级标志
+  while (client.connect(ipBuf, 8888) == 0)  //TCP连接
+  {
+    Serial.println("连接TCP服务端中...");
+    delay(1000);
+  }
+  Serial2.println(F("#UP3"));  //返回升级标志
+  Serial.println("升级中...");
+  while(Serial2.available())//清空多余数据
+    inChar = Serial2.read();
+  inChar = 0;
+  //client.write_P("C",1);
+  while(1)  //建立透传
+  {
+    char Serial2_but = 0;
+    char inBuff[16] = {0};
+    uint8_t sum = 0;
+
+    if (Serial2.available()) //串口发往TCP服务器
+    {
+      Serial2_but = Serial2.read();
+      client.write_P(&Serial2_but,1);
+      //Serial.print(String(Serial2_but));
+
+      if(Serial2_but == '#')  //收到指令
+      {
+        sum = 0;
+        while(Serial2.available())
+        {
+          Serial2_but = Serial2.read();
+          client.write_P(&Serial2_but,1);
+          //Serial.print(String(Serial2_but));
+          
+          inBuff[sum] = Serial2_but;
+          if(Serial2_but == '#')
+          {
+            inBuff[sum] = '\0';
+            if(strcmp(inBuff,"RST") == 0) //复位
+            {
+              Serial.println("复位");
+              Serial.println("复位");
+              abort();
+            }
+            sum = 0;
+            break;
+          }
+          
+          if(sum < 15)
+            sum++;
+          else
+          {
+            sum = 0;
+            break;
+          }
+
+        }
+        sum = 0;
+      }  
+    }
+    else if (client.available()) //TCP服务器发往串口
+    {
+      Serial2.write(client.read());
+    }
+
+  }
+
 }

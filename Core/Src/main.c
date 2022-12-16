@@ -21,12 +21,13 @@
 #include "cmsis_os.h"
 #include "dma.h"
 #include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "ymodem.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -68,7 +69,8 @@ extern void VL53L0X_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+    //重设向量表，当前代码在扇区5
+    SCB->VTOR = 0x8020000;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -95,6 +97,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
   MX_SPI2_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
     RTT_printf(0, "Compile Time: %s  %s\n", __DATE__, __TIME__);
     VL53L0X_Init();
@@ -191,7 +194,26 @@ void SystemClock_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-
+  static uint32_t usart2_rx_cnt_last=0;
+    if (htim->Instance == htim10.Instance) 
+    {
+        uint32_t status_value=taskENTER_CRITICAL_FROM_ISR();            //进入临界区
+        RxLen2_x = UART_RX_BUF_SIZE - huart2.hdmarx->Instance->NDTR; // 获取DMA接收长度
+        if(RxLen2_x)
+        {
+          //若相等，则表示串口3目前接收数据完毕
+          if(RxLen2_x == usart2_rx_cnt_last || RxLen2_x>134)
+          {
+            HAL_UART_DMAStop(&huart2);
+            g_usart2_rx_end=1;
+          }
+          else
+          {
+            usart2_rx_cnt_last = RxLen2_x;
+          }
+        }
+        taskEXIT_CRITICAL_FROM_ISR(status_value);              //退出临界区
+    }
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM9) {
     HAL_IncTick();

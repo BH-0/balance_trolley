@@ -1,5 +1,6 @@
 #include "sys.h"
 #include "usart.h"
+#include "tim.h"
 #include "ymodem.h"
 #include "w25qxx.h"
 #include <stdio.h>
@@ -7,6 +8,8 @@
 #include <stdlib.h>
 
 //uint8_t RxTestBuf[10240] = {0};
+volatile uint32_t RxLen2_x = 0;
+volatile uint8_t g_usart2_rx_end = 0;
 
 extern osMutexId SPI1_MutexHandle;
 
@@ -68,13 +71,14 @@ void ymodem_send_cmd(uint8_t command)
 }
 
 /* 标记升级完成 */
-void update_set_down(void)
+void update_set_down(uint8_t *file_size_buf)
 {
 	uint32_t update_flag = 0xAAAAAAAA;				// 对应bootloader的启动步骤
 	
 	//flash_program((APPLICATION_2_ADDR + APPLICATION_2_SIZE - 4), &update_flag,1 );
 	portDISABLE_INTERRUPTS();   //关中断
 	W25QXX_Write((uint8_t *)&update_flag, 64/8*1024*1024 - 4, 4);
+	W25QXX_Write((uint8_t *)file_size_buf, 64/8*1024*1024 - 8, 4);
 	portENABLE_INTERRUPTS();    //开中断
 }
 
@@ -91,22 +95,29 @@ void ymodem_download(void)
 
 static 
 	uint8_t data_state = 0;
-	static uint8_t data_state_sum = 0;
-	static uint8_t block_state = 0;
+	static uint8_t data_state_sum = 0;  //数据计数
+	static uint8_t block_state = 0; //块计数
+
+	uint32_t file_size = 0;
+    uint8_t file_size_buf[4] = {0}; //写入spiflash
 	// if(ymodem_get_state()==TO_START)
 	// {
 	// 	ymodem_send_cmd(CCC);
 		
 	// 	delay_ms(1000);
 	// }
-	
-	/* 串口1接收完一个数据包 */
-	if(RxLen2 > 0)//g_usart1_rx_end)    	
+	__HAL_TIM_CLEAR_IT(&htim10,TIM_IT_UPDATE ); //清除IT标志位
+	HAL_TIM_Base_Start_IT(&htim10);             //启动时基
+    StartUartRxDMA(&huart2);  //开启DMA
+	ymodem_send_cmd(CCC);
+  for(;;)
+  {
+	/* 串口2接收完一个数据包 */
+	if(g_usart2_rx_end)    	
 	{
-		
 		/* 清空接收完成标志位、接收计数值 */
-		// g_usart1_rx_end=0;
-		// g_usart1_rx_cnt=0;
+		g_usart2_rx_end=0;
+		RxLen2_x=0;
 		
 		switch(RxBuffer2[0])
 		{
@@ -120,7 +131,7 @@ static
 					if(crc != (RxBuffer2[BUF_SIZE+3]<<8|RxBuffer2[BUF_SIZE+4]))
 					{
 						RTT_printf(1,"CRC Error\r\n");
-						return;
+						for(;;);
 					}
 						
 					
@@ -129,6 +140,27 @@ static
 
 						ymodem_set_state(TO_RECEIVE_DATA);
 						
+						/* 读出文件大小 */
+						for(int i=3; i<133; i++)
+						{
+							if(RxBuffer2[i] == '\0')
+							{
+								file_size |= (RxBuffer2[i+1]&0xFF)<<24;
+                                file_size_buf[0] = RxBuffer2[i+1];
+                                file_size |= (RxBuffer2[i+2]&0xFF)<<16;
+                                file_size_buf[1] = RxBuffer2[i+2];
+                                file_size |= (RxBuffer2[i+3]&0xFF)<<8;
+                                file_size_buf[2] = RxBuffer2[i+3];
+                                file_size |= (RxBuffer2[i+4]&0xFF)<<0;
+                                file_size_buf[3] = RxBuffer2[i+4];
+                                break;
+							} 
+						}
+                        if(file_size>= 128*1024)    //文件过大
+                        {
+                            RTT_printf(1,"File size is too big!\r\n");
+                            for(;;);
+                        }
 						/* 若ymodem_send_cmd执行在sector_erase之前，则导致串口数据丢包，因为擦除会关闭所有中断 */
 						/* 擦除应用程序2的扇区 */
 						//sector_erase(APPLICATION_2_SECTOR);		
@@ -149,7 +181,7 @@ static
 					}
 					else if((ymodem_get_state()==TO_RECEIVE_END)&&(RxBuffer2[1] == 0x00)&&(RxBuffer2[2] == (uint8_t)(~RxBuffer2[1])))// 结束
 					{
-						update_set_down();						
+						update_set_down(file_size_buf);						
 						ymodem_set_state(TO_START);
 						ymodem_send_cmd(ACK);
 						
@@ -159,17 +191,18 @@ static
 						{
 							data_state_sum = 0;
 							//memcpy(RxTestBuf+block_state*4096, _4k_buf, 4096);	//4096写入块 测试
-                            portDISABLE_INTERRUPTS();   //关中断
+							portDISABLE_INTERRUPTS();   //关中断
 							W25QXX_Write(_4k_buf, block_state*4096, 4096);
-                            portENABLE_INTERRUPTS();    //开中断
+							portENABLE_INTERRUPTS();    //开中断
 							block_state++;
 						}
-						
+						osDelay(1000);
 						/* 复位 */
 						//NVIC_SystemReset();
 
-                        //连续发送。测试
-                        ymodem_set_state(TO_START);
+						//连续发送。测试
+						// ymodem_set_state(TO_START);
+						return;
 					}					
 					else if((ymodem_get_state()==TO_RECEIVE_DATA)&&(RxBuffer2[1] == data_state)&&(RxBuffer2[2] == (uint8_t)(~RxBuffer2[1])))// 接收数据
 					{
@@ -184,11 +217,11 @@ static
 						else
 						{
 							memcpy(_4k_buf+data_state_sum*BUF_SIZE, (uint32_t *)(&RxBuffer2[3]), BUF_SIZE); //复制至缓存
-                            data_state_sum = 0;
+							data_state_sum = 0;
 							//memcpy(RxTestBuf+block_state*4096, _4k_buf, 4096);	//4096写入块 测试
-                            portDISABLE_INTERRUPTS();   //关中断
+							portDISABLE_INTERRUPTS();   //关中断
 							W25QXX_Write(_4k_buf, block_state*4096, 4096);
-                            portENABLE_INTERRUPTS();    //开中断
+							portENABLE_INTERRUPTS();    //开中断
 							block_state++;
 						}
 
@@ -213,14 +246,16 @@ static
 					ymodem_send_cmd(CCC);
 				}
 
-                
+				
 	
 			}break;	
 			
 			default:break;
 		}
-
+		StartUartRxDMA(&huart2);  //开启DMA
 	}
+
+  }
 }
 
 

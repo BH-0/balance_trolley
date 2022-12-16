@@ -22,7 +22,8 @@ enum UPDATE_STATE
 	TO_RECEIVE_END = 0x05
 };
 
-
+extern volatile uint32_t RxLen2_x;
+extern volatile uint8_t g_usart2_rx_end;
 
 extern void ymodem_download(void);
 uint8_t ymodem_get_state(void);

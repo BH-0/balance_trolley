@@ -43,7 +43,7 @@ volatile unsigned char RxBuffer2[UART_RX_BUF_SIZE] = {0};
 volatile unsigned char TxBuffer2[UART_RX_BUF_SIZE] = {0};
 char sendCompleteSign2 = TRUE;  //发送完成标志
 unsigned char TxLen2 = 0; //发送长度
-unsigned int RxLen2 = 0;//接收每段数据的字节长度
+volatile unsigned int RxLen2 = 0;//接收每段数据的字节长度
 
 char YAWCMD[3] = {0XFF,0XAA,0X52};
 char ACCCMD[3] = {0XFF,0XAA,0X67};
@@ -453,9 +453,9 @@ char UartRxData(UART_HandleTypeDef *huart, unsigned char *buf, const unsigned in
 char StartUartRxDMA(UART_HandleTypeDef *huart)
 {
     if(huart == &huart1)
-        return UartRxData(huart, RxBuffer, UART_RX_BUF_SIZE);
+        return UartRxData(huart, (unsigned char *)RxBuffer, UART_RX_BUF_SIZE);
     if(huart == &huart2)
-        return UartRxData(huart, RxBuffer2, UART_RX_BUF_SIZE);
+        return UartRxData(huart, (unsigned char *)RxBuffer2, UART_RX_BUF_SIZE);
     return 0XFF;
 }
 
@@ -496,9 +496,9 @@ char UartTxData(UART_HandleTypeDef *huart, unsigned char *buf, const unsigned in
 char StartUartTxDMA(UART_HandleTypeDef *huart,uint8_t Len)
 {
     if(huart == &huart1)
-        return UartTxData(huart, TxBuffer, Len);
+        return UartTxData(huart, (unsigned char *)TxBuffer, Len);
     if(huart == &huart2)
-        return UartTxData(huart, TxBuffer2, Len);
+        return UartTxData(huart, (unsigned char *)TxBuffer2, Len);
     return 0XFF;
 }
 
